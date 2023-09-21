@@ -1,0 +1,15 @@
+services:
+  pashe-backend:
+    image: mcr.microsoft.com/devcontainers/base:bookworm
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+
+  database:
+    image: redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:
