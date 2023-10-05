@@ -5,11 +5,22 @@ services:
       - ../..:/workspaces:cached
     command: sleep infinity
 
-  database:
+  redis:
     image: redis
     restart: unless-stopped
     volumes:
       - redis-data:/data
 
+  influxdb:
+    image: influxdb
+    restart: unless-stopped
+    environment:
+      - INFLUXDB_REPORTING_DISABLED="true"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    ports:
+      - 8086:8086
+
 volumes:
   redis-data:
+  influxdb-data:

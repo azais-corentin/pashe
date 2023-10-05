@@ -16,10 +16,16 @@
 			"userGid": "automatic"
 		}
 	},
+	"mounts": [
+		"source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,readonly,consistency=cached",
+		"source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly,consistency=cached"
+	],
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"oven.bun-vscode",
+				"ms-vscode.vscode-typescript-next",
+				"dbaeumer.vscode-eslint",
 				"cweijan.vscode-redis-client"
 			]
 		}

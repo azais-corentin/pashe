@@ -12,6 +12,8 @@
   },
   "type": "module",
   "dependencies": {
+    "@influxdata/influxdb-client": "^1.33.2",
+    "@influxdata/influxdb-client-apis": "^1.33.2",
     "redis": "^4.6.9"
   }
 }
