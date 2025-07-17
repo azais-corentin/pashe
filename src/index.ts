@@ -126,16 +126,36 @@ while (true) {
     logger.info(`Fetching public stashes with change id {next_change_id}`, { next_change_id });
     const public_stashes = await getPublicStashes(handler, next_change_id);
 
+    logger.debug(`Fetched {count} public stashes`, { count: public_stashes.stashes.length });
+
     // const points: Point[] = [];
     let itemIndex = 0;
 
     for (const stash of public_stashes.stashes) {
+        // logger.trace(`Processing stash {*}`, {
+        //     stash: stash.stash,
+        //     username: stash.accountName,
+        //     itemCount: stash.items.length,
+        // });
         const stashValue = extractNoteValue(stash.stash);
 
         for (const item of stash.items) {
-            const itemValue = item.note != null ? extractNoteValue(item.note) : stashValue;
+            // logger.trace(`Processing item {*}`, {
+            //     item: item.name,
+            //     note: item.note,
+            //     typeLine: item.typeLine,
+            //     baseType: item.baseType,
+            //     itemIndex,
+            // });
+            const itemValue = extractNoteValue(item.note) ?? stashValue;
 
             if (itemValue !== undefined) {
+                logger.debug(`Item value: {name} {value} {currency}`, {
+                    name: `${item.typeLine} (${item.baseType})`,
+                    value: itemValue.value,
+                    currency: itemValue.currency,
+                    itemIndex,
+                });
                 /*
                 let point = new Point("price")
                     .floatField("value", itemValue.value)
