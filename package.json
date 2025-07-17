@@ -1,19 +1,19 @@
 {
-  "name": "pashe-backend",
-  "module": "src/index.ts",
-  "scripts": {
-    "start": "bun run src/index.ts"
-  },
-  "devDependencies": {
-    "bun-types": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "type": "module",
-  "dependencies": {
-    "@influxdata/influxdb-client": "^1.33.2",
-    "@influxdata/influxdb-client-apis": "^1.33.2",
-    "redis": "^4.6.9"
-  }
+    "name": "pashe-backend",
+    "type": "module",
+    "module": "src/index.ts",
+    "scripts": {
+        "dev": "bun run src/index.ts"
+    },
+    "dependencies": {
+        "@logtape/logtape": "^1.0.4",
+        "@logtape/pretty": "^1.0.4",
+        "@logtape/sentry": "^1.0.4",
+        "@sentry/bun": "^9.40.0",
+        "redis": "^5"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.1.2",
+        "@types/bun": "^1.2.18"
+    }
 }

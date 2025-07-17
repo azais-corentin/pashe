@@ -1,23 +1,31 @@
-import { build, sleep } from "bun";
-import { buildUrl } from "Api/POE";
+import { getLogger } from "@logtape/logtape";
+import { sleep } from "bun";
+import { buildUrl } from "./types";
+
+const logger = getLogger(["pashe", "api", "rate-limit"]);
 
 /**
  * Handles HTTP 429 Too Many Requests errors after they've happened
  */
-export const postFetchHandler = async (url: string | Request | URL, init?: RequestInit | undefined, retry = 0): Promise<Response> => {
-    if (retry > 5) { // Handle recursive retry
-        throw 'Fetch failed';
+export const postFetchHandler = async (
+    url: string | Request | URL,
+    init?: RequestInit | undefined,
+    retry = 0,
+): Promise<Response> => {
+    if (retry > 5) {
+        // Handle recursive retry
+        throw "Fetch failed";
     }
 
     const response = await fetch(url, init);
 
-    if (response.status == 429) {
+    if (response.status === 429) {
         const retryAfter = 1 + parseInt(response.headers.get("Retry-After") ?? "0");
-        console.log(`Retrying in ${retryAfter}s`);
+        logger.info(`Retrying in ${retryAfter}s`);
 
         await sleep(retryAfter * 1000);
 
-        return postHandler(url, init, retry + 1);
+        return postFetchHandler(url, init, retry + 1);
     } else {
         return response;
     }
@@ -25,7 +33,7 @@ export const postFetchHandler = async (url: string | Request | URL, init?: Reque
 
 export const rateLimitedFetch = (url: string | Request | URL, init?: RequestInit | undefined) => {
     return postFetchHandler(url, init);
-}
+};
 
 export class RateLimitedHandler {
     defaultOptions: any;
@@ -38,9 +46,9 @@ export class RateLimitedHandler {
     public constructor(token: string) {
         this.defaultOptions = {
             headers: {
-                "Authorization": `Bearer ${token}`,
-                "User-Agent": "OAuth pashebackend/0.1 (contact: haellsigh@gmail.com)"
-            }
+                Authorization: `Bearer ${token}`,
+                "User-Agent": "OAuth pashebackend/0.1 (contact: haellsigh@gmail.com)",
+            },
         };
     }
 
@@ -52,9 +60,13 @@ export class RateLimitedHandler {
         return this.resetDate - Date.now();
     }
 
-    public async fetch(endpoint: string, init?: RequestInit | undefined, retry = 0): Promise<Response | undefined> {
+    public async fetch(
+        endpoint: string,
+        init?: RequestInit | undefined,
+        retry = 0,
+    ): Promise<Response | undefined> {
         if (retry > 5) {
-            console.error(`Fetch failed on endpoint ${endpoint} after 5 retries`);
+            logger.error(`Fetch failed on endpoint ${endpoint} after 5 retries`);
             return;
         }
 
@@ -65,7 +77,7 @@ export class RateLimitedHandler {
             // We were previously limited due to:
             // - normal rate limiting
             // - status 429 too many requests
-            // console.log(`Waiting ${this.timeToReset / 1000}s for next reset`);
+            
             await sleep(this.timeToReset);
         }
 
@@ -77,15 +89,17 @@ export class RateLimitedHandler {
 
         // Update local limit values
         this.limitRequests = rateLimitRule ? Number(rateLimitRule[0]) : Number.POSITIVE_INFINITY;
-        this.remainingRequests = rateLimitState ? this.limitRequests - Number(rateLimitState[0]) : 1;
+        this.remainingRequests = rateLimitState
+            ? this.limitRequests - Number(rateLimitState[0])
+            : 1;
         this.resetDate = rateLimitRule ? Number(rateLimitRule[1]) * 1000 + Date.now() : Date.now();
 
         // Log
         // console.debug(`${this.remainingRequests}/${this.limitRequests} remaining, reset in ${this.timeToReset}ms`);
 
         // Check if we got rate limited anyways
-        if (response.status == 429) {
-            console.warn("Unexpected rate limiting..!");
+        if (response.status === 429) {
+            logger.warn("Unexpected rate limiting..!");
 
             const resetDate = response.headers.get("Retry-After");
 

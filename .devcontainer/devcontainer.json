@@ -1,39 +1,16 @@
 {
-	"name": "Pashe-backend",
-	"dockerComposeFile": "docker-compose.yml",
-	"service": "pashe-backend",
-	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-	"features": {
-		"ghcr.io/shyim/devcontainers-features/bun:0": {},
-		"ghcr.io/devcontainers/features/common-utils:2": {
-			"installZsh": true,
-			"configureZshAsDefaultShell": true,
-			"installOhMyZsh": true,
-			"installOhMyZshConfig": true,
-			"upgradePackages": true,
-			"username": "automatic",
-			"userUid": "automatic",
-			"userGid": "automatic"
-		}
-	},
-	"mounts": [
-		"source=${localEnv:HOME}/.ssh,target=/root/.ssh,type=bind,readonly,consistency=cached",
-		"source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly,consistency=cached"
-	],
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"oven.bun-vscode",
-				"ms-vscode.vscode-typescript-next",
-				"dbaeumer.vscode-eslint",
-				"cweijan.vscode-redis-client"
-			]
-		}
-	}
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-	// Configure tool-specific properties.
-	// "customizations": {},
+    "name": "Pashe-backend",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "app",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "oven.bun-vscode",
+                "ms-vscode.vscode-typescript-next",
+                "dbaeumer.vscode-eslint",
+                "cweijan.vscode-redis-client",
+                "biomejs.biome"
+            ]
+        }
+    }
 }

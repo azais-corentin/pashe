@@ -1,185 +1,178 @@
-import { retrieveToken } from "AuthHandler";
-import { RedisFlushModes, createClient } from "redis";
-import { InfluxDB, Point, HttpError } from '@influxdata/influxdb-client'
+import { exit } from "node:process";
+import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
+import { getPrettyFormatter } from "@logtape/pretty";
+import { getSentrySink } from "@logtape/sentry";
+import * as Sentry from "@sentry/bun";
+import { createClient } from "redis";
+import { GetPublicStashes } from "./api/public-stash";
+import { RateLimitedHandler } from "./api/rate-limit";
+import { retrieveToken } from "./auth-handler";
 
+const sentryClient = Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    _experiments: { enableLogs: true },
+});
 
-import { RateLimitedHandler } from "Api/RateLimit";
-import { GetPublicStashes } from "Api/PublicStash";
-import { type } from "os";
-import { exit } from "process";
-import { sleep } from "bun";
+await configure({
+    sinks: {
+        sentry: getSentrySink(sentryClient),
+        /*
+        console: getConsoleSink({
+            formatter: getPrettyFormatter({
+                timestamp: "date-time",
+                icons: false,
+                categorySeparator: ".",
+            }),
+        }),
+        */
+    },
+    loggers: [{ category: [], sinks: ["sentry"], lowestLevel: "debug" }],
+});
+
+const logger = getLogger(["pashe", "main"]);
 
 // Retrieve client id/secret from environment
 const client_id = process.env.CLIENT_ID;
 const client_secret = process.env.CLIENT_SECRET;
 
+logger.info("Uhhh...");
+logger.error("Database connection established", {
+    host: "dbHost",
+    port: "dbPort",
+    username: "dbUser",
+    loginTime: new Date(),
+});
+
+await Sentry.flush();
+
 // Connect to redis
 const tokenCache = await createClient({
     url: "redis://redis",
-    database: 0
+    database: 0,
 })
-    .on('error', err => () => {
-        console.log('Redis Client Error', err)
+    .on("error", (err) => {
+        logger.error("Redis Client Error", err);
         throw err;
     })
     .connect();
 
 const hashCache = await createClient({
     url: "redis://redis",
-    database: 1
+    database: 1,
 })
-    .on('error', err => () => {
-        console.log('Redis Client Error', err)
+    .on("error", (err) => {
+        logger.error("Redis Client Error", err);
         throw err;
     })
     .connect();
 
+if (!client_id || !client_secret) {
+    logger.error("CLIENT_ID and CLIENT_SECRET environment variables are required");
+    exit(-1);
+}
+
 const token = await retrieveToken(tokenCache, client_id, client_secret);
 
-const handler = new RateLimitedHandler(token);
-
-let next_change_id = "2116708015-2110081184-2041061893-2265422455-2197472551";
-
-// let totalStashes = 0;
-
-// let totalDivinePrice = 0;
-// let totalDivineListings = 0;
-
-
-const start = performance.now();
+if (token === "undefined") {
+    exit(-1);
+}
 
 interface ItemValue {
     value: number;
     currency: string;
 }
 
-const extractNoteValue = (note: string): ItemValue | undefined => {
-    const priceTokens = note.split(" ");
-
-    if (priceTokens.length < 3) {
+const extractNoteValue = (note: string | null | undefined): ItemValue | undefined => {
+    if (note == null) {
         return;
     }
 
-    if (priceTokens[0] != "~price") {
+    const priceTokens = note.split(" ");
+
+    if (priceTokens.length < 3 || priceTokens[0] !== "~price") {
         return;
     }
 
     const value = (() => {
-        const priceFraction = priceTokens[1].split("/")
+        const firstPriceToken = priceTokens[1];
+        if (!firstPriceToken) {
+            return NaN;
+        }
+
+        const priceFraction = firstPriceToken.split("/");
+
+        // TODO: Strip any char that's not a number from price strings
+
+        const numerator = parseInt(priceFraction[0] ?? "error");
         if (priceFraction.length > 1) {
-            return parseInt(priceFraction[0]) / parseInt(priceFraction[1]);
+            const denominator = parseInt(priceFraction[1] ?? "error");
+            if (denominator > 0) {
+                return numerator / denominator;
+            } else {
+                return numerator;
+            }
         } else {
-            return parseInt(priceFraction[0]);
+            return numerator;
         }
     })();
 
-    if (isNaN(value)) {
+    if (Number.isNaN(value)) {
         return;
     }
 
-    return { value, currency: priceTokens[2] };
-}
+    if (!Number.isFinite(value)) {
+        return;
+    }
 
-// const typeMap = new Map<string, BigInt>;
+    return { value, currency: priceTokens[2]?.toLocaleLowerCase() ?? "error" };
+};
 
-// hashCache.tDigest.create("test")
+/*
+const writeApi = new InfluxDB({
+    url: process.env.INFLUX_URL ?? "",
+    token: process.env.INFLUX_TOKEN,
+}).getWriteApi(process.env.INFLUX_ORG ?? "", process.env.INFLUX_BUCKET ?? "", "ms");
+*/
 
-const writeApi = new InfluxDB({ url: process.env.INFLUX_URL ?? "", token: process.env.INFLUX_TOKEN }).getWriteApi(process.env.INFLUX_ORG ?? "", process.env.INFLUX_BUCKET ?? "", 'ns')
-
-for (let i = 0; i < 100; i++) {
-    const point1 = new Point("temperature").floatField("value", 20 + Math.round(100 * Math.random()) / 10).tag("source", "test");
-    await sleep(1);
-
-    writeApi.writePoint(point1);
-}
-
-await writeApi.close();
-
-const queryApi = new InfluxDB({ url: process.env.INFLUX_URL ?? "", token: process.env.INFLUX_TOKEN }).getQueryApi(process.env.INFLUX_ORG ?? "");
-
-for await (const { values, tableMeta } of queryApi.iterateRows('from(bucket:"pashe") |> range(start: -1d) |> filter(fn: (r) => r._measurement == "temperature")')) {
-    const o = tableMeta.toObject(values)
-
-    console.log(
-        `${o._time} ${o._measurement} in '${o.location}' (${o.example}): ${o._field}=${o._value}`
-    )
-}
-
-exit(0);
+let next_change_id = "2135721132-2128260640-2059181769-2285909364-2218124765";
+const handler = new RateLimitedHandler(token);
 
 while (true) {
-    // console.log(`Fetching ${next_change_id}`);
+    console.log(`Fetching ${next_change_id}`);
     const public_stashes = await GetPublicStashes(handler, next_change_id);
 
+    // const points: Point[] = [];
+    let itemIndex = 0;
+
     for (const stash of public_stashes.stashes) {
-        const stashValue = extractNoteValue(stash.stash ?? "");
+        const stashValue = extractNoteValue(stash.stash);
 
         for (const item of stash.items) {
-            let itemValue: ItemValue | undefined;
-            if (item.note === undefined) {
-
-                // console.log(`No item note; stash name: ${stash.stash}`);
-
-                itemValue = stashValue;
-            } else {
-                itemValue = extractNoteValue(item.note);
-            }
+            const itemValue = item.note != null ? extractNoteValue(item.note) : stashValue;
 
             if (itemValue !== undefined) {
-                // if (await hashCache.exists(item.baseType)) {
-                //     if (BigInt(await hashCache.get(item.baseType) ?? "") != BigInt(Bun.hash(item.baseType))) {
-                //         console.log("Hash is UNSTABLE!!");
-                //     }
-                // } else {
-                //     hashCache.set(item.baseType, String(Bun.hash(item.baseType)));
-                // }
-
-                // if (typeMap.has(item.baseType)) {
-                //     if (typeMap.get(item.baseType) != BigInt(Bun.hash(item.baseType))) {
-
-                //     }
-                // } else {
-                //     typeMap.set(item.baseType, BigInt(Bun.hash(item.baseType)));
-                // }
-
-                // console.log(`${item.baseType} is worth ${itemValue?.value} ${itemValue?.currency.toLocaleLowerCase()}`);
+                /*
+                let point = new Point("price")
+                    .floatField("value", itemValue.value)
+                    .stringField("", "")
+                    .tag("currency", itemValue.currency)
+                    .tag("baseType", item.baseType)
+                    .uintField("itemIndex", itemIndex);
+                if (item.typeLine.length > 1) {
+                    point = point.tag("typeLine", item.typeLine);
+                }
+                points.push(point);
+                */
+                itemIndex++;
             }
-
-            // // console.log(`name: ${item.name} / baseType: ${item.baseType}`);
-            // if ("Divine Orb".localeCompare(item.baseType, 'en', { sensitivity: 'base' }) == 0) {
-            //     const priceTokens = item.note.split(" ");
-            //     if (priceTokens[0] != "~price" || priceTokens[2] != "chaos") {
-            //         continue;
-            //     }
-
-            //     const price = (() => {
-            //         const priceFraction = priceTokens[1].split("/")
-            //         if (priceFraction.length > 1) {
-            //             return parseInt(priceFraction[0]) / parseInt(priceFraction[1]);
-            //         } else {
-            //             return parseInt(priceFraction[0]);
-            //         }
-            //     })();
-
-            //     if (isNaN(price)) {
-            //         continue;
-            //     }
-
-            //     console.log(`Price ${price} (${item.note})`);
-
-            //     totalDivinePrice += price;
-            //     totalDivineListings++;
-            // }
         }
     }
 
-    // console.log(`Average divine price: ${totalDivinePrice / totalDivineListings} chaos/divine`);
-
-    // const totalTime = performance.now() - start;
-    // totalStashes += public_stashes.stashes.length;
-    // console.log(`${totalStashes / (totalTime / 1000)} stashes/s`);
+    // Write points to influxdb
+    // writeApi.writePoints(points);
+    logger.info(`Wrote ${/*points.length*/ 0} points to database`);
 
     next_change_id = public_stashes.next_change_id;
 }
 
-await tokenCache.disconnect();
+await Promise.allSettled([/*writeApi.close(),*/ tokenCache.close()]);

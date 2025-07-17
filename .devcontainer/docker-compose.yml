@@ -1,6 +1,9 @@
 services:
-  pashe-backend:
-    image: mcr.microsoft.com/devcontainers/base:bookworm
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: development
     volumes:
       - ../..:/workspaces:cached
     command: sleep infinity
@@ -11,16 +14,20 @@ services:
     volumes:
       - redis-data:/data
 
-  influxdb:
-    image: influxdb
+  db:
+    image: postgres
     restart: unless-stopped
     environment:
-      - INFLUXDB_REPORTING_DISABLED="true"
+      POSTGRES_USER: pashe
+      POSTGRES_PASSWORD: pashe
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
     volumes:
-      - influxdb-data:/var/lib/influxdb2
-    ports:
-      - 8086:8086
+      - postgres-data:/var/lib/postgresql/data
 
 volumes:
   redis-data:
-  influxdb-data:
+  postgres-data:
