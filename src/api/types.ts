@@ -1,5 +1,12 @@
+import packageData from "../../package.json" with { type: "json" };
+
 export const constants = {
     server: "https://api.pathofexile.com",
+    defaultOptions: {
+        headers: {
+            "User-Agent": `OAuth ${packageData.name}/${packageData.version} (contact: ${packageData.author.email})`,
+        },
+    },
 };
 
 export const buildUrl = (endpoint: string) => {
@@ -106,9 +113,9 @@ interface Item {
     colour?: string;
 }
 
-interface ItemSocket {}
+type ItemSocket = {};
 
-interface ItemProperty {}
+type ItemProperty = {};
 
 interface Reward {
     label: string;
