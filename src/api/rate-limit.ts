@@ -1,6 +1,6 @@
 import { getLogger } from "@logtape/logtape";
 import { sleep } from "bun";
-import { buildUrl } from "./types";
+import { buildUrl, constants } from "./types";
 
 const logger = getLogger(["pashe", "api", "rate-limit"]);
 
@@ -13,6 +13,7 @@ export const postFetchHandler = async (
     retry = 0,
 ): Promise<Response> => {
     if (retry > 5) {
+        logger.error(`Fetch failed on endpoint {url} after 5 retries`, { url });
         // Handle recursive retry
         throw "Fetch failed";
     }
@@ -21,7 +22,7 @@ export const postFetchHandler = async (
 
     if (response.status === 429) {
         const retryAfter = 1 + parseInt(response.headers.get("Retry-After") ?? "0");
-        logger.info(`Retrying in ${retryAfter}s`);
+        logger.warn("Rate limit exceeded, retrying in {retryAfter}s", { retryAfter });
 
         await sleep(retryAfter * 1000);
 
@@ -35,8 +36,27 @@ export const rateLimitedFetch = (url: string | Request | URL, init?: RequestInit
     return postFetchHandler(url, init);
 };
 
+const deepMergeWithSpread = <T extends Record<string, unknown>>(obj1: T, obj2: T): T => {
+    const result = { ...obj1 };
+
+    for (const key in obj2) {
+        if (Object.hasOwn(obj2, key)) {
+            if (obj2[key] instanceof Object && obj1[key] instanceof Object) {
+                result[key] = deepMergeWithSpread(obj1[key] as T, obj2[key] as T) as T[Extract<
+                    keyof T,
+                    string
+                >];
+            } else {
+                result[key] = obj2[key];
+            }
+        }
+    }
+
+    return result;
+};
+
 export class RateLimitedHandler {
-    defaultOptions: any;
+    defaultOptions: RequestInit;
 
     private resetDate = -1; // Date when the rate limit resets
     private remainingRequests = 1; // Remaining requests that can be made before we are rate limited
@@ -44,12 +64,15 @@ export class RateLimitedHandler {
     private oldLimitRequests = Number.POSITIVE_INFINITY; // Change detection
 
     public constructor(token: string) {
-        this.defaultOptions = {
+        this.defaultOptions = deepMergeWithSpread(constants.defaultOptions, {
             headers: {
                 Authorization: `Bearer ${token}`,
-                "User-Agent": "OAuth pashebackend/0.1 (contact: haellsigh@gmail.com)",
             },
-        };
+        });
+        logger.debug(
+            "RateLimitedHandler initialized with options {*}",
+            this.defaultOptions as never,
+        );
     }
 
     private get limited(): boolean {
@@ -77,7 +100,7 @@ export class RateLimitedHandler {
             // We were previously limited due to:
             // - normal rate limiting
             // - status 429 too many requests
-            
+
             await sleep(this.timeToReset);
         }
 
@@ -94,18 +117,20 @@ export class RateLimitedHandler {
             : 1;
         this.resetDate = rateLimitRule ? Number(rateLimitRule[1]) * 1000 + Date.now() : Date.now();
 
-        // Log
-        // console.debug(`${this.remainingRequests}/${this.limitRequests} remaining, reset in ${this.timeToReset}ms`);
+        logger.debug("Updated rate limits {*}", {
+            remaining: this.remainingRequests,
+            limit: this.limitRequests,
+            resetTimeMs: this.timeToReset,
+        });
 
         // Check if we got rate limited anyways
         if (response.status === 429) {
-            logger.warn("Unexpected rate limiting..!");
-
-            const resetDate = response.headers.get("Retry-After");
+            const retryAfter = 1 + parseInt(response.headers.get("Retry-After") ?? "0");
+            logger.warn("Unexpectedly rate limited, retrying in {retryAfter}s", { retryAfter });
 
             // Fetch up to date next retry date
             this.remainingRequests = 0;
-            this.resetDate = resetDate ? Number(resetDate) * 1000 + Date.now() : Date.now();
+            this.resetDate = Date.now() + retryAfter * 1000;
 
             return this.fetch(url, fetchOptions, retry++);
         }
