@@ -2,7 +2,7 @@ import { exit } from "node:process";
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { getPrettyFormatter } from "@logtape/pretty";
 import { createClient, type RedisClientType } from "redis";
-import { GetPublicStashes } from "./api/public-stash";
+import { getPublicStashes } from "./api/public-stash";
 import { RateLimitedHandler } from "./api/rate-limit";
 import { retrieveToken } from "./auth-handler";
 
@@ -124,7 +124,7 @@ const handler = new RateLimitedHandler(token);
 
 while (true) {
     logger.info(`Fetching public stashes with change id {next_change_id}`, { next_change_id });
-    const public_stashes = await GetPublicStashes(handler, next_change_id);
+    const public_stashes = await getPublicStashes(handler, next_change_id);
 
     // const points: Point[] = [];
     let itemIndex = 0;

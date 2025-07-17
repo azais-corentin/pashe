@@ -1,7 +1,7 @@
 import type { RateLimitedHandler } from "./rate-limit";
 import type { PublicStashStream } from "./types";
 
-export const GetPublicStashes = async (
+export const getPublicStashes = async (
     handler: RateLimitedHandler,
     nextChangeId = "0",
 ): Promise<PublicStashStream> => {
@@ -19,4 +19,4 @@ export const GetPublicStashes = async (
     throw new Error(`status ${response.status}`);
 };
 
-export default GetPublicStashes;
+export default getPublicStashes;
