@@ -1,8 +1,13 @@
 import { getLogger } from "@logtape/logtape";
+import type { RedisClientType } from "redis";
 
 const logger = getLogger(["pashe", "auth-handler"]);
 
-export const retrieveToken = async (cache: any, client_id: string, client_secret: string) => {
+export const retrieveToken = async (
+    cache: RedisClientType,
+    client_id: string,
+    client_secret: string,
+) => {
     // Check if token was already retrieved
     const tokenRetrieved = await cache.exists("token");
 
@@ -30,14 +35,19 @@ export const retrieveToken = async (cache: any, client_id: string, client_secret
             error_description?: string;
         };
 
-        if (!("access_token" in oauth)) {
+        if (!oauth.access_token) {
             logger.error(`Error fetching token: ${oauth.error_description}`);
             return "undefined";
         }
 
-        logger.debug("Retrieved new token", { oauth });
+        logger.debug("Retrieved new token {oauth}", { oauth });
 
-        await cache.set("token", oauth.access_token);
+        await cache.set("token", oauth.access_token, {
+            expiration: {
+                type: "EX",
+                value: 60 * 60 * 24 * 28, // 28 days
+            },
+        });
 
         return oauth.access_token;
     } else {

@@ -1,22 +1,13 @@
 import { exit } from "node:process";
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { getPrettyFormatter } from "@logtape/pretty";
-import { getSentrySink } from "@logtape/sentry";
-import * as Sentry from "@sentry/bun";
-import { createClient } from "redis";
+import { createClient, type RedisClientType } from "redis";
 import { GetPublicStashes } from "./api/public-stash";
 import { RateLimitedHandler } from "./api/rate-limit";
 import { retrieveToken } from "./auth-handler";
 
-const sentryClient = Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    _experiments: { enableLogs: true },
-});
-
 await configure({
     sinks: {
-        sentry: getSentrySink(sentryClient),
-        /*
         console: getConsoleSink({
             formatter: getPrettyFormatter({
                 timestamp: "date-time",
@@ -24,38 +15,36 @@ await configure({
                 categorySeparator: ".",
             }),
         }),
-        */
     },
-    loggers: [{ category: [], sinks: ["sentry"], lowestLevel: "debug" }],
+    loggers: [
+        { category: ["logtape", "meta"], sinks: ["console"], lowestLevel: "warning" },
+        { category: [], sinks: ["console"], lowestLevel: "debug" },
+    ],
 });
 
 const logger = getLogger(["pashe", "main"]);
 
-// Retrieve client id/secret from environment
 const client_id = process.env.CLIENT_ID;
 const client_secret = process.env.CLIENT_SECRET;
 
-logger.info("Uhhh...");
-logger.error("Database connection established", {
-    host: "dbHost",
-    port: "dbPort",
-    username: "dbUser",
-    loginTime: new Date(),
-});
+if (!client_id || !client_secret) {
+    logger.error("CLIENT_ID and CLIENT_SECRET environment variables are required");
+    exit(-1);
+}
 
-await Sentry.flush();
-
-// Connect to redis
-const tokenCache = await createClient({
+const tokenCache: RedisClientType = await createClient({
     url: "redis://redis",
     database: 0,
-})
+});
+
+tokenCache
     .on("error", (err) => {
-        logger.error("Redis Client Error", err);
+        logger.error("Redis error: {err}", err);
         throw err;
     })
     .connect();
 
+/*
 const hashCache = await createClient({
     url: "redis://redis",
     database: 1,
@@ -65,11 +54,7 @@ const hashCache = await createClient({
         throw err;
     })
     .connect();
-
-if (!client_id || !client_secret) {
-    logger.error("CLIENT_ID and CLIENT_SECRET environment variables are required");
-    exit(-1);
-}
+*/
 
 const token = await retrieveToken(tokenCache, client_id, client_secret);
 
@@ -138,7 +123,7 @@ let next_change_id = "2135721132-2128260640-2059181769-2285909364-2218124765";
 const handler = new RateLimitedHandler(token);
 
 while (true) {
-    console.log(`Fetching ${next_change_id}`);
+    logger.info(`Fetching public stashes with change id {next_change_id}`, { next_change_id });
     const public_stashes = await GetPublicStashes(handler, next_change_id);
 
     // const points: Point[] = [];
