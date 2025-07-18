@@ -1,0 +1,17 @@
+{
+    "name": "pashe-backend",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "app",
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    "capAdd": ["SYS_PTRACE"],
+    "securityOpt": [ "seccomp=unconfined" ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "vadimcn.vscode-lldb",
+                "fill-labs.dependi"
+            ]
+        }
+    }
+}

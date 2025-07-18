@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: development
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+
+  redis:
+    image: redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  db:
+    image: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pashe
+      POSTGRES_PASSWORD: pashe
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+volumes:
+  redis-data:
+  postgres-data:
