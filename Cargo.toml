@@ -2,5 +2,10 @@
 name = "pashe-backend"
 version = "0.1.0"
 edition = "2024"
+authors = ["haellsigh@gmail.com"]
 
 [dependencies]
+dotenv = "0"
+oauth2 = "5"
+reqwest = "0"
+tokio = { version = "1", features = ["full"] }
