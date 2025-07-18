@@ -11,6 +11,11 @@ FROM mcr.microsoft.com/devcontainers/base:debian AS development
 
 ARG DEBIAN_FRONTEND
 
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+pkg-config \
+&& rm -rf /var/lib/apt/lists/*
+
 USER vscode
 
 # Install mise
