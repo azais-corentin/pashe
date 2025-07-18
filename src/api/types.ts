@@ -77,7 +77,7 @@ export const RewardSchema = z.object({
     /**
      * The key is a string representing the type of reward. The value is the amount.
      */
-    rewards: z.array(z.record(z.string(), z.number())),
+    rewards: z.record(z.string(), z.number()),
 });
 export type Reward = z.infer<typeof RewardSchema>;
 
@@ -144,15 +144,15 @@ export const CrucibleNodeSchema = z.object({
     /**
      * Always `true` if present.
      */
-    allocated: z.boolean().nullish(),
+    allocated: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isNotable: z.boolean().nullish(),
+    isNotable: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isReward: z.boolean().nullish(),
+    isReward: z.boolean().default(false),
     /**
      * Stat descriptions.
      */
@@ -199,8 +199,8 @@ export const HybridSchema = z.object({
 export type Hybrid = z.infer<typeof HybridSchema>;
 
 export const ExtendedSchema = z.object({
-    category: z.string().nullish(),
-    subcategories: z.array(z.string()).nullish(),
+    // category: z.string().nullish(),
+    // subcategories: z.array(z.string()).nullish(),
     prefixes: z.number().nullish(),
     suffixes: z.number().nullish(),
 });
@@ -267,7 +267,7 @@ const ItemWithoutSocketedItemsSchema = z.object({
     /**
      * Always `true` if present.
      */
-    support: z.boolean().nullish(),
+    support: z.boolean().default(false),
     stackSize: z.number().nullish(),
     maxStackSize: z.number().nullish(),
     stackSizeText: z.string().nullish(),
@@ -284,39 +284,39 @@ const ItemWithoutSocketedItemsSchema = z.object({
     /**
      * Always `true` if present.
      */
-    elder: z.boolean().nullish(),
+    elder: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    shaper: z.boolean().nullish(),
+    shaper: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    searing: z.boolean().nullish(),
+    searing: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    tangled: z.boolean().nullish(),
+    tangled: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    memoryItem: z.boolean().nullish(),
+    memoryItem: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    abyssJewel: z.boolean().nullish(),
+    abyssJewel: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    delve: z.boolean().nullish(),
+    delve: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    fractured: z.boolean().nullish(),
+    fractured: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    synthesised: z.boolean().nullish(),
+    synthesised: z.boolean().default(false),
     sockets: z.array(ItemSocketSchema).nullish(),
     name: z.string(),
     typeLine: z.string(),
@@ -343,39 +343,39 @@ const ItemWithoutSocketedItemsSchema = z.object({
     /**
      * Always `true` if present.
      */
-    lockedToCharacter: z.boolean().nullish(),
+    lockedToCharacter: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    lockedToAccount: z.boolean().nullish(),
+    lockedToAccount: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    duplicated: z.boolean().nullish(),
+    duplicated: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    split: z.boolean().nullish(),
+    split: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    corrupted: z.boolean().nullish(),
+    corrupted: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    unmodifiable: z.boolean().nullish(),
+    unmodifiable: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    cisRaceReward: z.boolean().nullish(),
+    cisRaceReward: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    seaRaceReward: z.boolean().nullish(),
+    seaRaceReward: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    thRaceReward: z.boolean().nullish(),
+    thRaceReward: z.boolean().default(false),
     properties: z.array(ItemPropertySchema).nullish(),
     notableProperties: z.array(ItemPropertySchema).nullish(),
     requirements: z.array(ItemPropertySchema).nullish(),
@@ -421,7 +421,7 @@ const ItemWithoutSocketedItemsSchema = z.object({
     /**
      * Always `true` if present.
      */
-    veiled: z.boolean().nullish(),
+    veiled: z.boolean().default(false),
     /**
      * PoE2 only.
      */
@@ -445,23 +445,23 @@ const ItemWithoutSocketedItemsSchema = z.object({
     /**
      * Always `true` if present.
      */
-    isRelic: z.boolean().nullish(),
+    isRelic: z.boolean().default(false),
     foilVariation: z.number().nullish(),
     /**
      * Always `true` if present.
      */
-    replica: z.boolean().nullish(),
+    replica: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    foreseeing: z.boolean().nullish(),
+    foreseeing: z.boolean().default(false),
     incubatedItem: IncubatedItemSchema.nullish(),
     scourged: ScourgedSchema.nullish(),
     crucible: CrucibleSchema.nullish(),
     /**
      * Always `true` if present.
      */
-    ruthless: z.boolean().nullish(),
+    ruthless: z.boolean().default(false),
     frameType: z.enum(FrameType).nullish(),
     artFilename: z.string().nullish(),
     hybrid: HybridSchema.nullish(),
@@ -476,7 +476,7 @@ const ItemWithoutSocketedItemsSchema = z.object({
     /**
      * `S`, `D`, `I`, or `G`.
      */
-    colour: z.string().nullish(),
+    colour: z.enum(["S", "D", "I", "G"]).nullish(),
 });
 export const ItemSchema = ItemWithoutSocketedItemsSchema.extend({
     socketedItems: z.array(ItemWithoutSocketedItemsSchema).nullish(),
@@ -557,7 +557,7 @@ export const LeagueSchema = z.object({
             /**
              * Set for the active challenge leagues; always `true` if present.
              */
-            current: z.boolean().nullish(),
+            current: z.boolean().default(false),
         })
         .nullish(),
     rules: z.array(LeagueRuleSchema).nullish(),
@@ -568,7 +568,7 @@ export const LeagueSchema = z.object({
     /**
      * Always `true` if present.
      */
-    event: z.boolean().nullish(),
+    event: z.boolean().default(false),
     /**
      * A URL link to a Path of Exile forum thread.
      */
@@ -584,23 +584,23 @@ export const LeagueSchema = z.object({
     /**
      * Always `true` if present.
      */
-    timedEvent: z.boolean().nullish(),
+    timedEvent: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    scoreEvent: z.boolean().nullish(),
+    scoreEvent: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    delveEvent: z.boolean().nullish(),
+    delveEvent: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    ancestorEvent: z.boolean().nullish(),
+    ancestorEvent: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    leagueEvent: z.boolean().nullish(),
+    leagueEvent: z.boolean().default(false),
 });
 export type League = z.infer<typeof LeagueSchema>;
 
@@ -739,15 +739,15 @@ export const PvPMatchSchema = z.object({
     /**
      * Always `true` if present.
      */
-    complete: z.boolean().nullish(),
+    complete: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    upcoming: z.boolean().nullish(),
+    upcoming: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    inProgress: z.boolean().nullish(),
+    inProgress: z.boolean().default(false),
 });
 export type PvPMatch = z.infer<typeof PvPMatchSchema>;
 
@@ -820,15 +820,15 @@ export const PassiveNodeSchema = z.object({
     /**
      * Always `true` if present.
      */
-    isKeystone: z.boolean().nullish(),
+    isKeystone: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isNotable: z.boolean().nullish(),
+    isNotable: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isMastery: z.boolean().nullish(),
+    isMastery: z.boolean().default(false),
     /**
      * Inactive mastery image.
      */
@@ -859,19 +859,19 @@ export const PassiveNodeSchema = z.object({
     /**
      * Always `true` if present.
      */
-    isBlighted: z.boolean().nullish(),
+    isBlighted: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isTattoo: z.boolean().nullish(),
+    isTattoo: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isProxy: z.boolean().nullish(),
+    isProxy: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isJewelSocket: z.boolean().nullish(),
+    isJewelSocket: z.boolean().default(false),
     /**
      * Cluster jewel information.
      */
@@ -909,15 +909,15 @@ export const PassiveNodeSchema = z.object({
     /**
      * Always `true` if present.
      */
-    isAscendancyStart: z.boolean().nullish(),
+    isAscendancyStart: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isMultipleChoice: z.boolean().nullish(),
+    isMultipleChoice: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    isMultipleChoiceOption: z.boolean().nullish(),
+    isMultipleChoiceOption: z.boolean().default(false),
     grantedPassivePoints: z.number().nullish(),
     /**
      * Stat descriptions.
@@ -989,19 +989,19 @@ export const CharacterSchema = z.object({
     /**
      * PoE1 only; always `true` if present.
      */
-    ruthless: z.boolean().nullish(),
+    ruthless: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    expired: z.boolean().nullish(),
+    expired: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    deleted: z.boolean().nullish(),
+    deleted: z.boolean().default(false),
     /**
      * Always `true` if present.
      */
-    current: z.boolean().nullish(),
+    current: z.boolean().default(false),
     equipment: z.array(ItemSchema).nullish(),
     /**
      * PoE2 only.
@@ -1078,11 +1078,11 @@ const StashTabWithoutChildrenSchema = z.object({
         /**
          * Always `true` if present.
          */
-        public: z.boolean().nullish(),
+        public: z.boolean().default(false),
         /**
          * Always `true` if present.
          */
-        folder: z.boolean().nullish(),
+        folder: z.boolean().default(false),
         /**
          * 6 digit hex colour.
          */
@@ -1126,7 +1126,7 @@ export const ItemFilterSchema = z.object({
     /**
      * Always `true` if present.
      */
-    public: z.boolean().nullish(),
+    public: z.boolean().default(false),
     /**
      * Not present when listing all filters.
      */

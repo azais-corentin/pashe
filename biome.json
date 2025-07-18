@@ -11,6 +11,7 @@
             ".vscode/*.json",
             ".devcontainer/*.json",
             "*.json",
+            "*.ts",
             "!node_modules/**"
         ],
         "ignoreUnknown": false

@@ -16,7 +16,7 @@ RUN curl https://mise.run | sh && \
 # Install bun
 RUN ~/.local/bin/mise use -g bun node
 # Install gemini-cli
-RUN ~/.local/bin/mise exec bun -- bun install -g @google/gemini-cli && \
+RUN ~/.local/bin/mise exec bun -- bun install -g @google/gemini-cli @biomejs/biome && \
     echo 'PATH=$PATH:~/.bun/bin/' >> ~/.bashrc
 
 # Start from a clean, slim container

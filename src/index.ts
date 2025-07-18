@@ -6,6 +6,8 @@ import { fetchInitialNextChangeId } from "./api/ninja";
 import { getPublicStashes } from "./api/public-stash";
 import { RateLimitedHandler } from "./api/rate-limit";
 import { retrieveToken } from "./auth-handler";
+import { db } from "./db/db";
+import { items, publicStashChanges, publicStashChangesToItems } from "./db/schema";
 
 await configure({
     sinks: {
@@ -33,12 +35,12 @@ if (!client_id || !client_secret) {
     exit(-1);
 }
 
-const tokenCache: RedisClientType = await createClient({
+const cache: RedisClientType = await createClient({
     url: "redis://redis",
     database: 0,
 });
 
-tokenCache
+cache
     .on("error", (err) => {
         logger.error("Redis error: {err}", err);
         throw err;
@@ -57,110 +59,98 @@ const hashCache = await createClient({
     .connect();
 */
 
-const token = await retrieveToken(tokenCache, client_id, client_secret);
+const token = await retrieveToken(cache, client_id, client_secret);
 
 if (token === "undefined") {
     exit(-1);
 }
 
-interface ItemValue {
-    value: number;
-    currency: string;
-}
-
-const extractNoteValue = (note: string | null | undefined): ItemValue | undefined => {
-    if (note == null) {
-        return;
-    }
-
-    const priceTokens = note.split(" ");
-
-    if (priceTokens.length < 3 || priceTokens[0] !== "~price") {
-        return;
-    }
-
-    const value = (() => {
-        const firstPriceToken = priceTokens[1];
-        if (!firstPriceToken) {
-            return NaN;
-        }
-
-        const priceFraction = firstPriceToken.split("/");
-
-        // TODO: Strip any char that's not a number from price strings
-
-        const numerator = parseInt(priceFraction[0] ?? "error");
-        if (priceFraction.length > 1) {
-            const denominator = parseInt(priceFraction[1] ?? "error");
-            if (denominator > 0) {
-                return numerator / denominator;
-            } else {
-                return numerator;
-            }
-        } else {
-            return numerator;
-        }
-    })();
-
-    if (Number.isNaN(value)) {
-        return;
-    }
-
-    if (!Number.isFinite(value)) {
-        return;
-    }
-
-    return { value, currency: priceTokens[2]?.toLocaleLowerCase() ?? "error" };
+const updateNextChangeId = async (nextChangeId: string) => {
+    await cache.set("next_change_id", nextChangeId, {
+        expiration: {
+            type: "EX",
+            value: 60 * 5, // Cache for 5 minutes
+        },
+    });
+    logger.debug("Updated next_change_id in cache: {next_change_id}", {
+        next_change_id: nextChangeId,
+    });
 };
 
-/*
-const writeApi = new InfluxDB({
-    url: process.env.INFLUX_URL ?? "",
-    token: process.env.INFLUX_TOKEN,
-}).getWriteApi(process.env.INFLUX_ORG ?? "", process.env.INFLUX_BUCKET ?? "", "ms");
-*/
+const getInitialNextChangeId = async (): Promise<string> => {
+    let initialChangeId = await cache.get("next_change_id");
 
-let next_change_id = await fetchInitialNextChangeId();
+    if (initialChangeId) {
+        logger.info("Using cached next_change_id: {next_change_id}", {
+            next_change_id: initialChangeId,
+        });
+        return initialChangeId;
+    }
+
+    logger.debug("No cached next_change_id found, fetching initial value from API");
+
+    initialChangeId = await fetchInitialNextChangeId();
+    updateNextChangeId(initialChangeId);
+
+    logger.info("Fetched initial next_change_id: {next_change_id}", {
+        next_change_id: initialChangeId,
+    });
+
+    return await fetchInitialNextChangeId();
+};
+
+let nextChangeId = await getInitialNextChangeId();
 const handler = new RateLimitedHandler(token);
 
 while (true) {
-    logger.info(`Fetching public stashes with change id {next_change_id}`, { next_change_id });
-    const public_stashes = await getPublicStashes(handler, next_change_id);
+    logger.info(`Fetching public stashes with change id {next_change_id}`, {
+        next_change_id: nextChangeId,
+    });
+    const public_stashes = await getPublicStashes(handler, nextChangeId);
 
     logger.debug(`Fetched {count} public stashes`, { count: public_stashes.stashes.length });
 
-    // const points: Point[] = [];
-    let itemIndex = 0;
-
     for (const stash of public_stashes.stashes) {
-        const stashValue = extractNoteValue(stash.stash);
+        // await db.insert(publicStashChanges).values({
+        //     id: stash.id,
+        //     public: stash.public,
+        //     accountName: stash.accountName,
+        //     stash: stash.stash,
+        //     stashType: stash.stashType,
+        //     league: stash.league,
+        // });
+        logger.debug("Inserted public stash change", { stashId: stash.id });
 
-        for (const item of stash.items) {
-            const itemValue = extractNoteValue(item.note) ?? stashValue;
-
-            if (itemValue !== undefined) {
-                /*
-                let point = new Point("price")
-                    .floatField("value", itemValue.value)
-                    .stringField("", "")
-                    .tag("currency", itemValue.currency)
-                    .tag("baseType", item.baseType)
-                    .uintField("itemIndex", itemIndex);
-                if (item.typeLine.length > 1) {
-                    point = point.tag("typeLine", item.typeLine);
-                }
-                points.push(point);
-                */
-                itemIndex++;
-            }
+        const itemsToInsert = stash.items.filter((item) => item.id);
+        if (itemsToInsert.length > 0) {
+            await db
+                .insert(items)
+                .values(itemsToInsert as never)
+                .onConflictDoNothing({
+                    target: items.id,
+                });
+            logger.info(`Inserted ${itemsToInsert.length} items for stash ${stash.id}`);
         }
+
+        /*
+        for (const item of stash.items) {
+            if (!item.id) {
+                logger.warn("Skipping item without valid id", { item });
+                continue;
+            }
+            await db.insert(items).values(item);
+            await db.insert(publicStashChangesToItems).values({
+                publicStashChangeId: stash.id,
+                itemId: item.id,
+            });
+        }
+        */
     }
 
-    // Write points to influxdb
-    // writeApi.writePoints(points);
-    logger.info(`Wrote ${/*points.length*/ 0} points to database`);
+    logger.info(`Wrote ${public_stashes.stashes.length} stashes to database`);
 
-    next_change_id = public_stashes.next_change_id;
+    nextChangeId = public_stashes.next_change_id;
+    updateNextChangeId(nextChangeId);
 }
 
-await Promise.allSettled([/*writeApi.close(),*/ tokenCache.close()]);
+await Promise.allSettled([/*writeApi.close(),*/ cache.close()]);
