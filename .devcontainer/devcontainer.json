@@ -1,16 +1,17 @@
 {
-    "name": "Pashe-backend",
-    "dockerComposeFile": "docker-compose.yml",
-    "service": "app",
-    "customizations": {
-        "vscode": {
-            "extensions": [
-                "oven.bun-vscode",
-                "ms-vscode.vscode-typescript-next",
-                "dbaeumer.vscode-eslint",
-                "cweijan.vscode-redis-client",
-                "biomejs.biome"
-            ]
-        }
+  "name": "Pashe-backend",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "oven.bun-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "dbaeumer.vscode-eslint",
+        "cweijan.vscode-redis-client",
+        "biomejs.biome"
+      ]
     }
+  }
 }
