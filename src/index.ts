@@ -2,6 +2,7 @@ import { exit } from "node:process";
 import { configure, getConsoleSink, getLogger } from "@logtape/logtape";
 import { getPrettyFormatter } from "@logtape/pretty";
 import { createClient, type RedisClientType } from "redis";
+import { fetchInitialNextChangeId } from "./api/ninja";
 import { getPublicStashes } from "./api/public-stash";
 import { RateLimitedHandler } from "./api/rate-limit";
 import { retrieveToken } from "./auth-handler";
@@ -119,7 +120,7 @@ const writeApi = new InfluxDB({
 }).getWriteApi(process.env.INFLUX_ORG ?? "", process.env.INFLUX_BUCKET ?? "", "ms");
 */
 
-let next_change_id = "2135721132-2128260640-2059181769-2285909364-2218124765";
+let next_change_id = await fetchInitialNextChangeId();
 const handler = new RateLimitedHandler(token);
 
 while (true) {
@@ -132,30 +133,12 @@ while (true) {
     let itemIndex = 0;
 
     for (const stash of public_stashes.stashes) {
-        // logger.trace(`Processing stash {*}`, {
-        //     stash: stash.stash,
-        //     username: stash.accountName,
-        //     itemCount: stash.items.length,
-        // });
         const stashValue = extractNoteValue(stash.stash);
 
         for (const item of stash.items) {
-            // logger.trace(`Processing item {*}`, {
-            //     item: item.name,
-            //     note: item.note,
-            //     typeLine: item.typeLine,
-            //     baseType: item.baseType,
-            //     itemIndex,
-            // });
             const itemValue = extractNoteValue(item.note) ?? stashValue;
 
             if (itemValue !== undefined) {
-                logger.debug(`Item value: {name} {value} {currency}`, {
-                    name: `${item.typeLine} (${item.baseType})`,
-                    value: itemValue.value,
-                    currency: itemValue.currency,
-                    itemIndex,
-                });
                 /*
                 let point = new Point("price")
                     .floatField("value", itemValue.value)

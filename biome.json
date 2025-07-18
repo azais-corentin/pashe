@@ -6,7 +6,13 @@
         "useIgnoreFile": true
     },
     "files": {
-        "includes": ["src/**/*.ts", ".vscode/*.json", ".devcontainer/*.json", "*.json"],
+        "includes": [
+            "src/**/*.ts",
+            ".vscode/*.json",
+            ".devcontainer/*.json",
+            "*.json",
+            "!node_modules/**"
+        ],
         "ignoreUnknown": false
     },
     "formatter": {

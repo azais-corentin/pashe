@@ -87,10 +87,10 @@ export class RateLimitedHandler {
         endpoint: string,
         init?: RequestInit | undefined,
         retry = 0,
-    ): Promise<Response | undefined> {
+    ): Promise<Response> {
         if (retry > 5) {
             logger.error(`Fetch failed on endpoint ${endpoint} after 5 retries`);
-            return;
+            throw new Error(`Fetch failed on endpoint ${endpoint} after 5 retries`);
         }
 
         const fetchOptions = { ...this.defaultOptions, ...init };

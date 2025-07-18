@@ -1,5 +1,8 @@
+import { getLogger } from "@logtape/logtape";
 import type { RateLimitedHandler } from "./rate-limit";
-import type { PublicStashStream } from "./types";
+import { ItemSchema, type PublicStashStream, PublicStashStreamSchema } from "./types";
+
+const logger = getLogger(["pashe", "api", "rate-limit"]);
 
 export const getPublicStashes = async (
     handler: RateLimitedHandler,
@@ -7,16 +10,23 @@ export const getPublicStashes = async (
 ): Promise<PublicStashStream> => {
     const response = await handler.fetch(`public-stash-tabs?id=${nextChangeId}`);
 
-    if (response === undefined) {
-        console.error("Errore");
-        throw new Error("fetch failed");
+    if (response.status !== 200) {
+        logger.error("Failed to fetch public stashes, status {status}", {
+            status: response.status,
+        });
+        throw new Error(`Failed to fetch public stashes, status ${response.status}`);
     }
 
-    if (response.status === 200) {
-        return (await response.json()) as PublicStashStream;
-    }
+    const json = await response.json();
 
-    throw new Error(`status ${response.status}`);
+    const start = performance.now();
+    const publicStashStream = PublicStashStreamSchema.parse(json);
+    const end = performance.now();
+    logger.info("Parsed public stash stream in {duration}ms", {
+        duration: (end - start).toFixed(2),
+    });
+
+    return publicStashStream;
 };
 
 export default getPublicStashes;
