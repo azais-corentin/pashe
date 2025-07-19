@@ -1,3 +1,4 @@
 {
     "editor.inlayHints.enabled": "offUnlessPressed",
+    "sqltools.highlightQuery": false,
 }

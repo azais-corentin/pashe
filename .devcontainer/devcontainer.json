@@ -3,8 +3,12 @@
     "dockerComposeFile": "docker-compose.yml",
     "service": "app",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-    "capAdd": ["SYS_PTRACE"],
-    "securityOpt": [ "seccomp=unconfined" ],
+    "capAdd": [
+        "SYS_PTRACE"
+    ],
+    "securityOpt": [
+        "seccomp=unconfined"
+    ],
     "customizations": {
         "vscode": {
             "extensions": [
@@ -14,5 +18,8 @@
                 "tamasfe.even-better-toml"
             ]
         }
-    }
+    },
+    "forwardPorts": [
+        8086
+    ]
 }
