@@ -6,15 +6,21 @@
 # Stage 5: runtime          – Final container that includes the built application.
 
 ARG DEBIAN_FRONTEND noninteractive
+ARG MOLD_VERSION=2.40.2
 
 FROM mcr.microsoft.com/devcontainers/base:debian AS development
 
 ARG DEBIAN_FRONTEND
+ARG MOLD_VERSION
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
 pkg-config \
 && rm -rf /var/lib/apt/lists/*
+
+# Install mold
+RUN --mount=type=bind,source=.devcontainer/scripts,target=/tmp/scripts \
+	/tmp/scripts/install-mold.sh ${MOLD_VERSION}
 
 USER vscode
 

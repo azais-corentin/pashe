@@ -1094,10 +1094,13 @@ dependencies = [
  "oauth2",
  "redis",
  "reqwest",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
  "tracing-tracy",
+ "url",
 ]
 
 [[package]]
