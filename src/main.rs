@@ -5,12 +5,14 @@ mod poe;
 use anyhow::Result;
 use dotenv::dotenv;
 use oauth2::reqwest;
-use reqwest::header::{ACCEPT, HeaderValue, USER_AGENT};
+use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, USER_AGENT};
+use serde::de;
 use std::env;
 use tracing::{debug, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt};
 
 use crate::poe::public_stash::fetch_public_stashes;
+use tokio::signal;
 
 async fn get_access_token(http_client: &reqwest::Client) -> Result<String> {
     // Use get_cached_access_token if possible, otherwise use fetch_access_token
@@ -36,7 +38,7 @@ async fn main() -> Result<()> {
     let package_name = env!("CARGO_PKG_NAME");
     let package_author = env!("CARGO_PKG_AUTHORS");
 
-    let layer1 = fmt::Layer::default().with_file(true).with_line_number(true);
+    let layer1 = fmt::Layer::default();
     // let layer2 = tracing_tracy::TracyLayer::default();
     let subscriber = tracing_subscriber::registry().with(layer1); //.with(layer2);
 
@@ -62,6 +64,8 @@ async fn main() -> Result<()> {
     );
     headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
 
+    debug!("Headers: {:?}", headers);
+
     let http_client = reqwest::ClientBuilder::new()
         .redirect(reqwest::redirect::Policy::none())
         .default_headers(headers.clone())
@@ -72,7 +76,7 @@ async fn main() -> Result<()> {
     info!("Access Token: {}", access_token);
 
     headers.insert(
-        "Authorization",
+        AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {}", access_token))?,
     );
 
@@ -81,11 +85,29 @@ async fn main() -> Result<()> {
         .default_headers(headers)
         .build()?;
 
-    fetch_public_stashes(
-        &http_client,
-        "2865124210-2824412466-2748553974-3058514278-2954646931",
-    )
-    .await?;
+    let mut next_change_id: String =
+        "2865201480-2824479311-2748622439-3058596118-2954720699".to_string();
+
+    loop {
+        tokio::select! {
+            _ = signal::ctrl_c() => {
+                info!("Received Ctrl+C, shutting down gracefully...");
+                break;
+            }
+            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
+                let stash_changes = fetch_public_stashes(&http_client, next_change_id.as_str()).await?;
+                debug!("Fetched {} public stashes", stash_changes.stashes.len());
+                let total_items: usize = stash_changes
+                    .stashes
+                    .iter()
+                    .map(|stash| stash.items.len())
+                    .sum();
+                debug!("Total items across all stashes: {}", total_items);
+
+                next_change_id = stash_changes.next_change_id;
+            }
+        }
+    }
 
     // let client = db::get_client(
     //     &clickhouse_url,
