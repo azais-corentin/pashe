@@ -1,12 +1,12 @@
 use anyhow::Result;
 use clickhouse::Client;
 
-pub fn get_client() -> clickhouse::Client {
+pub fn get_client(url: &str, user: &str, password: &str, database: &str) -> clickhouse::Client {
     Client::default()
-        .with_url("http://db:8123")
-        .with_user("pashe")
-        .with_password("pashe")
-        .with_database("pashe")
+        .with_url(url)
+        .with_user(user)
+        .with_password(password)
+        .with_database(database)
 }
 
 pub async fn create_tables(client: &Client) -> Result<()> {
