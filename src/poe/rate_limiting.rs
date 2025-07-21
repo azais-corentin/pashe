@@ -67,8 +67,6 @@ impl RateLimiter for RateLimits {
         let ip_rate_limits = split_header_to_vec(headers, "X-Rate-Limit-Ip")?;
         let ip_rate_limits_state = split_header_to_vec(headers, "X-Rate-Limit-Ip-State")?;
 
-        debug!("Headers: {:?}", headers);
-
         if ip_rate_limits.len() != 3 {
             return Err(anyhow::anyhow!(
                 "X-Rate-Limit-Ip header has invalid format '{}'",
@@ -88,16 +86,11 @@ impl RateLimiter for RateLimits {
         let period = ip_rate_limits[1]
             .parse::<u32>()
             .context("Failed to parse period from X-Rate-Limit-Ip header")?;
-        // let time_restriction = ip_rate_limits[2]
-        //     .parse::<u32>()
-        //     .context("Failed to parse time restriction from X-Rate-Limit-Ip header")?;
 
         let current_hit_count = ip_rate_limits_state[0]
             .parse::<u32>()
             .context("Failed to parse current hit count from X-Rate-Limit-Ip-State header")?;
-        // let tested_period = ip_rate_limits_state[1]
-        //     .parse::<u32>()
-        //     .context("Failed to parse tested period from X-Rate-Limit-Ip-State header")?;
+
         self.reset_date =
             tokio::time::Instant::now() + tokio::time::Duration::from_secs(period as u64);
 
@@ -138,15 +131,12 @@ impl Middleware for RateLimitingMiddleware {
         extensions: &mut Extensions,
         next: Next<'_>,
     ) -> reqwest_middleware::Result<Response> {
-        info!("Running request...");
         self.limits.lock().await.ensure().await;
         let response = next.run(req, extensions).await;
 
         if let Ok(response) = response.as_ref() {
             self.limits.lock().await.update(response)?;
         }
-
-        info!("Done with request");
 
         response
     }
