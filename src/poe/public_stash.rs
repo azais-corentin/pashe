@@ -20,7 +20,7 @@ impl Default for Crawler {
 }
 
 pub trait Fetch {
-    async fn fetch_public_stashes(
+    async fn fetch(
         &mut self,
         client: &reqwest_middleware::ClientWithMiddleware,
         next_change_id: &str,
@@ -28,7 +28,7 @@ pub trait Fetch {
 }
 
 impl Fetch for Crawler {
-    async fn fetch_public_stashes(
+    async fn fetch(
         &mut self,
         client: &reqwest_middleware::ClientWithMiddleware,
         next_change_id: &str,
@@ -55,10 +55,8 @@ impl Fetch for Crawler {
             .await
             .with_context(|| format!("Failed to read response body from {}", url))?;
 
-        debug!("Got response body");
-
         let _span = tracing::debug_span!("Parsing response body");
-        let stashes = match serde_json::from_str::<PublicStashTabs>(&text_body) {
+        let stash_changes = match serde_json::from_str::<PublicStashTabs>(&text_body) {
             Ok(stashes) => stashes,
             Err(e) => {
                 error!("Failed to parse response: {}", e);
@@ -66,11 +64,11 @@ impl Fetch for Crawler {
             }
         };
 
-        self.stash_count += stashes.stashes.len() as u64;
-        self.item_count += stashes
+        self.stash_count += stash_changes.stashes.len() as u64;
+        self.item_count += stash_changes
             .stashes
             .iter()
-            .map(|s| s.items.len() as u64)
+            .map(|stash| stash.items.len() as u64)
             .sum::<u64>();
         self.bytes += text_body.len() as u64;
 
@@ -81,6 +79,6 @@ impl Fetch for Crawler {
             bytesize::ByteSize::b(self.bytes).display().si()
         );
 
-        Ok(stashes)
+        Ok(stash_changes)
     }
 }
