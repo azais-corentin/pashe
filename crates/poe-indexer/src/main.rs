@@ -6,12 +6,12 @@ use anyhow::Result;
 use dotenv::dotenv;
 use oauth2::reqwest;
 use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, USER_AGENT};
-use std::env;
+use std::{env, sync::Arc};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt};
 
-use crate::poe::{public_stash::Fetch, rate_limiting::RateLimitingMiddleware};
+use crate::poe::{public_stash::Crawl, rate_limiting::RateLimitingMiddleware};
 use tokio::signal;
 
 async fn get_access_token(http_client: &reqwest::Client) -> Result<String> {
@@ -115,7 +115,7 @@ async fn main() -> Result<()> {
         .await?
         .json::<serde_json::Value>()
         .await?;
-    let mut next_change_id: String = ninja["next_change_id"]
+    let next_change_id: String = ninja["next_change_id"]
         .as_str()
         .ok_or(anyhow::anyhow!(
             "Failed to get next_change_id from poe.ninja response"
@@ -124,11 +124,17 @@ async fn main() -> Result<()> {
 
     info!("Starting crawler at next_change_id: {}", next_change_id);
 
-    let mut stash_crawler = poe::public_stash::Crawler::default();
+    let stash_crawler = Arc::new(poe::public_stash::Crawler::new(shutdown_token.clone()));
+    stash_crawler
+        .crawl(Arc::new(http_client), next_change_id.to_string())
+        .await?;
 
+    shutdown_token.cancelled().await;
+
+    info!("Shutdown");
+
+    /*
     while !shutdown_token.is_cancelled() {
-        let stash_changes = stash_crawler.fetch(&http_client, &next_change_id).await?;
-
         let my_stashes: Vec<_> = stash_changes
             .stashes
             .iter()
@@ -155,6 +161,7 @@ async fn main() -> Result<()> {
 
         next_change_id = stash_changes.next_change_id;
     }
+    */
 
     // let client = db::get_client(
     //     &clickhouse_url,
