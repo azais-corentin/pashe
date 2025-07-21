@@ -1,4 +1,9 @@
 /*
+Table schema_migrations {
+  version String [primary key]
+  applied_at DateTime [default: `now()`]
+}
+
 Table accounts {
   id UInt64 [increment]
   name string [note: 'accountName']
