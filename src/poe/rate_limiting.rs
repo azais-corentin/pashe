@@ -29,17 +29,11 @@ fn split_header_to_vec<'a>(headers: &'a HeaderMap, header_name: &str) -> Result<
 
 impl RateLimiter for RateLimits {
     async fn ensure(&mut self) {
-        let limited = self.remaining_requests == 0 || self.reset_date > tokio::time::Instant::now();
+        let limited = self.remaining_requests == 0;
 
         if limited {
-            // If there's no reset date, update it from the period and set it to handle the worst case
-            if self.reset_date <= tokio::time::Instant::now() {
-                self.reset_date = tokio::time::Instant::now()
-                    + tokio::time::Duration::from_secs(self.period as u64);
-            }
-
-            warn!(
-                "Rate limit reached, sleeping until {}",
+            debug!(
+                "Sleep required to avoid rate limit, sleeping until {}",
                 chrono::Utc::now()
                     + chrono::Duration::from_std(
                         self.reset_date
@@ -47,8 +41,16 @@ impl RateLimiter for RateLimits {
                     )
                     .unwrap()
             );
+
+            // If there's no reset date, update it from the period and set it to handle the worst case
+            if self.reset_date <= tokio::time::Instant::now() {
+                debug!("Resetting reset_date to now + period");
+                self.reset_date = tokio::time::Instant::now()
+                    + tokio::time::Duration::from_secs(self.period as u64);
+            }
+
             tokio::time::sleep_until(self.reset_date).await;
-            debug!("Resuming after rate limit sleep");
+            debug!("Finished sleeping, resuming request");
         }
 
         self.remaining_requests = self.remaining_requests.saturating_sub(1);
@@ -97,6 +99,16 @@ impl RateLimiter for RateLimits {
         self.remaining_requests = max_hits - current_hit_count;
         self.period = period;
 
+        if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            warn!("Rate limit exceeded!");
+            self.remaining_requests = 0;
+            let restricted_time = ip_rate_limits_state[2]
+                .parse::<u32>()
+                .context("Failed to parse restricted time from X-Rate-Limit-Ip-State header")?;
+            self.reset_date = tokio::time::Instant::now()
+                + tokio::time::Duration::from_secs(restricted_time as u64);
+        }
+
         Ok(())
     }
 }
@@ -108,7 +120,7 @@ pub struct RateLimitingMiddleware {
 impl Default for RateLimits {
     fn default() -> Self {
         Self {
-            remaining_requests: 1,
+            remaining_requests: u32::MAX,
             reset_date: tokio::time::Instant::now(),
             period: 0,
         }
