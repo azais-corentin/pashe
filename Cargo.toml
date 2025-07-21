@@ -12,3 +12,5 @@ repository = "https://github.com/azais-corentin/pashe-backend"
 [workspace.dependencies]
 migrator = { path = "crates/migrator" }
 poe-indexer = { path = "crates/poe-indexer" }
+
+[workspace.lints.clippy]
