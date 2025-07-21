@@ -115,23 +115,43 @@ async fn main() -> Result<()> {
         .await?
         .json::<serde_json::Value>()
         .await?;
-    let mut next_change_id = ninja["next_change_id"].to_string();
+    let mut next_change_id: String = ninja["next_change_id"]
+        .as_str()
+        .ok_or(anyhow::anyhow!(
+            "Failed to get next_change_id from poe.ninja response"
+        ))?
+        .to_string();
 
     info!("Starting crawler at next_change_id: {}", next_change_id);
 
-    let mut public_stash_crawler = poe::public_stash::Crawler::default();
+    let mut stash_crawler = poe::public_stash::Crawler::default();
 
     while !shutdown_token.is_cancelled() {
-        let stash_changes = public_stash_crawler
-            .fetch_public_stashes(&http_client, &next_change_id)
-            .await?;
-        debug!("Fetched {} public stashes", stash_changes.stashes.len());
-        let total_items: usize = stash_changes
+        let stash_changes = stash_crawler.fetch(&http_client, &next_change_id).await?;
+
+        let my_stashes: Vec<_> = stash_changes
             .stashes
             .iter()
-            .map(|stash| stash.items.len())
-            .sum();
-        debug!("Total items across all stashes: {}", total_items);
+            .filter(|stash| {
+                stash
+                    .account_name
+                    .as_ref()
+                    .map_or(false, |name| name.to_lowercase().contains("haellsigh"))
+            })
+            .collect();
+
+        if !my_stashes.is_empty() {
+            info!("Found {} stashes belonging to Haellsigh", my_stashes.len());
+        }
+
+        for stash in my_stashes {
+            for item in &stash.items {
+                info!(
+                    "Found item: {}, {} ({})",
+                    item.name, item.type_line, item.base_type
+                );
+            }
+        }
 
         next_change_id = stash_changes.next_change_id;
     }
