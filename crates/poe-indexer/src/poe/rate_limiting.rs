@@ -21,7 +21,7 @@ trait RateLimiter {
 fn split_header_to_vec<'a>(headers: &'a HeaderMap, header_name: &str) -> Result<Vec<&'a str>> {
     Ok(headers
         .get(header_name)
-        .ok_or_else(|| anyhow::anyhow!("{} header not found", header_name))?
+        .ok_or(anyhow::anyhow!("{} header not found", header_name))?
         .to_str()?
         .split(':')
         .collect())
