@@ -1,0 +1,18 @@
+[package]
+name = "db"
+description = "Database management tool for Clickhouse"
+version = "0.1.0"
+
+repository.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.5.41", features = ["derive"] }
+clickhouse = { version = "0.13.3", features = ["chrono", "inserter", "uuid"] }
+dotenv = "0.15.0"
+tokio = { version = "1.46.1", features = ["full"] }
+tokio-util = "0.7.15"
