@@ -96,7 +96,7 @@ async fn main() -> Result<()> {
 
     headers.insert(
         AUTHORIZATION,
-        HeaderValue::from_str(&format!("Bearer {}", access_token))?,
+        HeaderValue::from_str(&format!("Bearer {access_token}"))?,
     );
 
     let http_client = reqwest::ClientBuilder::new()

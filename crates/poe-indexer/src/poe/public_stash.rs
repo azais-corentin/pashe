@@ -47,7 +47,7 @@ impl Crawl for Crawler {
             return Ok(());
         }
 
-        let url = format!("{}/public-stash-tabs?id={}", BASE_URL, next_change_id);
+        let url = format!("{BASE_URL}/public-stash-tabs?id={next_change_id}");
 
         debug!("Fetching next change id: {}", next_change_id);
 
@@ -84,10 +84,10 @@ impl Crawl for Crawler {
         let text_body = response
             .text()
             .await
-            .with_context(|| format!("Failed to read response body from {}", url))?;
+            .with_context(|| format!("Failed to read response body from {url}"))?;
 
         let stash_changes = serde_json::from_str::<PublicStashTabs>(&text_body)
-            .with_context(|| format!("Failed to parse response body from {}", url))?;
+            .with_context(|| format!("Failed to parse response body from {url}"))?;
 
         self.stash_count
             .fetch_add(stash_changes.stashes.len() as u64, Ordering::SeqCst);
