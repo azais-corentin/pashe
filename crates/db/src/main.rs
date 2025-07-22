@@ -1,6 +1,9 @@
-use anyhow::Result;
+use std::path::PathBuf;
+
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use clickhouse::Client;
+use thiserror::Error;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -41,8 +44,20 @@ enum MigrationCommands {
     /// Migrates to the specified version
     To {
         /// The version to migrate to
-        version: String,
+        version: u32,
     },
+}
+
+// Io(#[from] io::Error),
+
+#[derive(Error, Debug)]
+enum DbError {
+    #[error("Clickhouse error")]
+    Clickhouse(#[from] clickhouse::error::Error),
+    #[error("number error")]
+    Number(#[from] std::num::ParseIntError),
+    #[error("unknown version")]
+    UnknownVersion,
 }
 
 fn get_db() -> Client {
@@ -62,12 +77,89 @@ fn get_db() -> Client {
         .with_database(clickhouse_database)
 }
 
-fn create(_cli: &Cli, name: &str) {
-    println!("'migrate create' was used, name is: {name}");
+fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<u32>> {
+    let mut versions = std::fs::read_dir(directory)?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            if !entry.file_type().ok()?.is_file() {
+                return None;
+            }
+            let file_name = entry.file_name().into_string().ok()?;
+            if file_name.ends_with(".up.sql") || file_name.ends_with(".down.sql") {
+                let version: u32 = file_name.split('_').next()?.parse().ok()?;
+                Some(version)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    versions.sort();
+    versions.dedup();
+    Ok(versions)
 }
 
-fn to(_cli: &Cli, version: &str) {
+async fn create(cli: &Cli, name: &str) -> Result<()> {
+    println!("'migrate create' was used, name is: {name}");
+
+    // Create migration directory if it doesn't exist
+    let directory = std::env::current_dir()?.join(&cli.directory);
+    std::fs::create_dir_all(&directory).with_context(|| {
+        format!(
+            "Failed to create migration directory: {}",
+            directory.display()
+        )
+    })?;
+
+    // Check for any existing migrations, find the latest version and increment it by 1
+    let version = get_available_migration_versions(&directory)?
+        .iter()
+        .max()
+        .map_or(1, |v| v + 1);
+
+    // Create migration files
+    let up_file_path = directory.join(format!("{version:06}_{name}.up.sql"));
+    let down_file_path = directory.join(format!("{version:06}_{name}.down.sql"));
+
+    std::fs::File::create(&up_file_path).with_context(|| {
+        format!(
+            "Failed to create migration file: {}",
+            up_file_path.display()
+        )
+    })?;
+    std::fs::File::create(&down_file_path).with_context(|| {
+        format!(
+            "Failed to create migration file: {}",
+            down_file_path.display()
+        )
+    })?;
+
+    Ok(())
+}
+
+async fn to(_cli: &Cli, version: &u32) -> Result<()> {
     println!("'migrate to' was used, version is: {version}");
+
+    let current_version = match crate::version().await {
+        Ok(v) => v,
+        Err(DbError::UnknownVersion) => {
+            println!("Unknown database version, interpreting as version 0");
+            0
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    if current_version == *version {
+        println!("Database is already at version {version}");
+        return Ok(());
+    }
+
+    if current_version > *version {
+        println!("Downgrading database from version {current_version} to {version}");
+    } else {
+        println!("Upgrading database from version {current_version} to {version}");
+    }
+
+    Ok(())
 }
 
 async fn reset(_cli: &Cli) -> Result<()> {
@@ -114,7 +206,7 @@ async fn reset(_cli: &Cli) -> Result<()> {
     Ok(())
 }
 
-async fn version() -> Result<String> {
+async fn version() -> Result<u32, DbError> {
     let client = get_db();
 
     // Ensure the schema_migrations table exists
@@ -129,13 +221,17 @@ async fn version() -> Result<String> {
         .await
     {
         Ok(version) => version,
-        Err(clickhouse::error::Error::RowNotFound) => "unknown".to_string(),
-        Err(e) => return Err(e.into()),
+        Err(clickhouse::error::Error::RowNotFound) => {
+            return Err(DbError::UnknownVersion);
+        }
+        Err(e) => return Err(DbError::Clickhouse(e)),
     };
 
-    println!("Current database version: {}", result);
+    let version = result.parse()?;
 
-    Ok(result)
+    println!("Current database version: {version}");
+
+    Ok(version)
 }
 
 #[tokio::main]
@@ -146,8 +242,8 @@ async fn main() -> Result<()> {
 
     match &cli.command {
         Commands::Migration(migration) => match &migration.command {
-            MigrationCommands::Create { name } => create(&cli, name),
-            MigrationCommands::To { version } => to(&cli, version),
+            MigrationCommands::Create { name } => create(&cli, name).await?,
+            MigrationCommands::To { version } => to(&cli, version).await?,
         },
         Commands::Reset => reset(&cli).await?,
         Commands::Version => {
