@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use http::{Extensions, HeaderMap};
 use reqwest::{Request, Response};
 use reqwest_middleware::{Middleware, Next};
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 #[derive(Debug)]
 pub struct RateLimits {
