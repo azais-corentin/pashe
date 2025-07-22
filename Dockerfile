@@ -13,10 +13,14 @@ FROM mcr.microsoft.com/devcontainers/base:debian AS development
 ARG DEBIAN_FRONTEND
 ARG MOLD_VERSION
 
+# Install clickhouse repository
+RUN curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key' | sudo gpg --dearmor -o /usr/share/keyrings/clickhouse-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=$(dpkg --print-architecture)] https://packages.clickhouse.com/deb stable main" | sudo tee /etc/apt/sources.list.d/clickhouse.list
+
 # Install dependencies
 RUN apt-get update && apt-get install -y \
-pkg-config \
-&& rm -rf /var/lib/apt/lists/*
+    apt-transport-https ca-certificates clickhouse-client curl gnupg pkg-config && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install mold
 RUN --mount=type=bind,source=.devcontainer/scripts,target=/tmp/scripts \
