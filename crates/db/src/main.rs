@@ -194,66 +194,76 @@ async fn to(cli: &Cli, target_version: &u32) -> Result<()> {
     };
 
     if current_version == *target_version {
-        info!("Database is already at version {target_version:06}");
+        info!("Database is already at version {target_version}");
         return Ok(());
     }
 
     let db = get_db();
 
-    if current_version > *target_version {
-        info!("Downgrading database from version {current_version:06} to {target_version:06}");
+    let (steps, direction) = if current_version > *target_version {
+        info!("Downgrading database from version {current_version} to {target_version}");
+
+        let migrations_steps: Vec<_> = versions
+            .into_iter()
+            .filter(|m| m.version <= current_version && m.version > *target_version)
+            .rev()
+            .collect();
+
+        (migrations_steps, "down")
     } else {
-        info!("Upgrading database from version {current_version:06} to {target_version:06}");
+        info!("Upgrading database from version {current_version} to {target_version}");
 
         let migrations_steps: Vec<_> = versions
             .into_iter()
             .filter(|m| m.version > current_version && m.version <= *target_version)
             .collect();
 
-        info!(
-            "Applying migrations {}",
-            migrations_steps
-                .iter()
-                .map(|v| v.version.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        (migrations_steps, "up")
+    };
 
-        let migration_files = migrations_steps
+    info!(
+        "Applying migrations {}",
+        steps
             .iter()
-            .map(|m| directory.join(format!("{:06}_{}.up.sql", m.version, m.name)));
+            .map(|v| v.version.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
-        for file in migration_files {
-            info!("Applying migration file: {}", file.display());
+    let migration_files = steps
+        .iter()
+        .map(|m| directory.join(format!("{}_{}.{}.sql", m.version, m.name, direction)));
 
-            let contents = std::fs::read_to_string::<PathBuf>(file.clone())
-                .with_context(|| format!("Failed to read migration file: {}", file.display()))?;
+    for file in migration_files {
+        info!("Applying migration file: {}", file.display());
 
-            let queries = contents.split(";").filter(|query| !query.trim().is_empty());
+        let contents = std::fs::read_to_string::<PathBuf>(file.clone())
+            .with_context(|| format!("Failed to read migration file: {}", file.display()))?;
 
-            for query in queries {
-                db.query(query)
-                    .execute()
-                    .await
-                    .with_context(|| format!("Failed to execute query: {}", query))?;
-            }
+        let queries = contents.split(";").filter(|query| !query.trim().is_empty());
+
+        for query in queries {
+            db.query(query)
+                .execute()
+                .await
+                .with_context(|| format!("Failed to execute query: {query}"))?;
         }
-
-        // Update the schema_migrations table
-        // Delete existing version and insert the new one to ensure only one row exists
-        db.query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
-            .execute()
-            .await
-            .with_context(|| "Failed to delete old version from schema_migrations")?;
-
-        db.query("INSERT INTO schema_migrations (version) VALUES (?)")
-            .bind(target_version)
-            .execute()
-            .await
-            .with_context(|| {
-                format!("Failed to update schema_migrations to version {target_version:06}")
-            })?;
     }
+
+    // Update the schema_migrations table
+    // Delete existing version and insert the new one to ensure only one row exists
+    db.query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
+        .execute()
+        .await
+        .with_context(|| "Failed to delete old version from schema_migrations")?;
+
+    db.query("INSERT INTO schema_migrations (version) VALUES (?)")
+        .bind(target_version)
+        .execute()
+        .await
+        .with_context(|| {
+            format!("Failed to update schema_migrations to version {target_version:06}")
+        })?;
 
     Ok(())
 }
