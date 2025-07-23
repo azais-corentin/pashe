@@ -175,7 +175,14 @@ async fn to(cli: &Cli, target_version: &u32) -> Result<()> {
     let directory = std::env::current_dir()?.join(&cli.directory);
     let versions = get_available_migration_versions(&directory)?;
 
-    debug!("Available migration versions: {:?}", versions);
+    debug!(
+        "Available migration(s): {}",
+        versions
+            .iter()
+            .map(|v| format!("{}@{}", v.name, v.version))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     let current_version = match crate::version().await {
         Ok(v) => v,
