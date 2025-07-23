@@ -1,9 +1,11 @@
-use std::path::PathBuf;
-
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use clickhouse::Client;
+use std::cmp::Ordering;
+use std::path::PathBuf;
 use thiserror::Error;
+use tracing::{debug, info};
+use tracing_subscriber::prelude::*;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -77,7 +79,25 @@ fn get_db() -> Client {
         .with_database(clickhouse_database)
 }
 
-fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<u32>> {
+#[derive(Debug, PartialEq, Eq)]
+struct MigrationInfo {
+    name: String,
+    version: u32,
+}
+
+impl Ord for MigrationInfo {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.version.cmp(&other.version)
+    }
+}
+
+impl PartialOrd for MigrationInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<MigrationInfo>> {
     let mut versions = std::fs::read_dir(directory)?
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -86,8 +106,19 @@ fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<u32>> {
             }
             let file_name = entry.file_name().into_string().ok()?;
             if file_name.ends_with(".up.sql") || file_name.ends_with(".down.sql") {
-                let version: u32 = file_name.split('_').next()?.parse().ok()?;
-                Some(version)
+                let mut parts = file_name.splitn(2, '_');
+                let version: u32 = parts.next()?.parse().ok()?;
+                let name_part = parts.next()?;
+
+                let name = name_part
+                    .strip_suffix(".up.sql")
+                    .or_else(|| name_part.strip_suffix(".down.sql"))
+                    .unwrap_or(name_part)
+                    .to_string();
+
+                let migration_info = MigrationInfo { name, version };
+
+                Some(migration_info)
             } else {
                 None
             }
@@ -99,8 +130,6 @@ fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<u32>> {
 }
 
 async fn create(cli: &Cli, name: &str) -> Result<()> {
-    println!("'migrate create' was used, name is: {name}");
-
     // Create migration directory if it doesn't exist
     let directory = std::env::current_dir()?.join(&cli.directory);
     std::fs::create_dir_all(&directory).with_context(|| {
@@ -114,11 +143,17 @@ async fn create(cli: &Cli, name: &str) -> Result<()> {
     let version = get_available_migration_versions(&directory)?
         .iter()
         .max()
-        .map_or(1, |v| v + 1);
+        .map_or(1, |migration| migration.version + 1);
 
     // Create migration files
     let up_file_path = directory.join(format!("{version:06}_{name}.up.sql"));
     let down_file_path = directory.join(format!("{version:06}_{name}.down.sql"));
+
+    info!(
+        "Creating migration files {} and {}",
+        up_file_path.display(),
+        down_file_path.display()
+    );
 
     std::fs::File::create(&up_file_path).with_context(|| {
         format!(
@@ -136,27 +171,81 @@ async fn create(cli: &Cli, name: &str) -> Result<()> {
     Ok(())
 }
 
-async fn to(_cli: &Cli, version: &u32) -> Result<()> {
-    println!("'migrate to' was used, version is: {version}");
+async fn to(cli: &Cli, target_version: &u32) -> Result<()> {
+    let directory = std::env::current_dir()?.join(&cli.directory);
+    let versions = get_available_migration_versions(&directory)?;
+
+    debug!("Available migration versions: {:?}", versions);
 
     let current_version = match crate::version().await {
         Ok(v) => v,
         Err(DbError::UnknownVersion) => {
-            println!("Unknown database version, interpreting as version 0");
+            info!("Unknown database version, interpreting as version 0");
             0
         }
         Err(e) => return Err(e.into()),
     };
 
-    if current_version == *version {
-        println!("Database is already at version {version}");
+    if current_version == *target_version {
+        info!("Database is already at version {target_version:06}");
         return Ok(());
     }
 
-    if current_version > *version {
-        println!("Downgrading database from version {current_version} to {version}");
+    let db = get_db();
+
+    if current_version > *target_version {
+        info!("Downgrading database from version {current_version:06} to {target_version:06}");
     } else {
-        println!("Upgrading database from version {current_version} to {version}");
+        info!("Upgrading database from version {current_version:06} to {target_version:06}");
+
+        let migrations_steps: Vec<_> = versions
+            .into_iter()
+            .filter(|m| m.version > current_version && m.version <= *target_version)
+            .collect();
+
+        info!(
+            "Applying migrations {}",
+            migrations_steps
+                .iter()
+                .map(|v| v.version.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        let migration_files = migrations_steps
+            .iter()
+            .map(|m| directory.join(format!("{:06}_{}.up.sql", m.version, m.name)));
+
+        for file in migration_files {
+            info!("Applying migration file: {}", file.display());
+
+            let contents = std::fs::read_to_string::<PathBuf>(file.clone())
+                .with_context(|| format!("Failed to read migration file: {}", file.display()))?;
+
+            let queries = contents.split(";").filter(|query| !query.trim().is_empty());
+
+            for query in queries {
+                db.query(query)
+                    .execute()
+                    .await
+                    .with_context(|| format!("Failed to execute query: {}", query))?;
+            }
+        }
+
+        // Update the schema_migrations table
+        // Delete existing version and insert the new one to ensure only one row exists
+        db.query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
+            .execute()
+            .await
+            .with_context(|| "Failed to delete old version from schema_migrations")?;
+
+        db.query("INSERT INTO schema_migrations (version) VALUES (?)")
+            .bind(target_version)
+            .execute()
+            .await
+            .with_context(|| {
+                format!("Failed to update schema_migrations to version {target_version:06}")
+            })?;
     }
 
     Ok(())
@@ -167,11 +256,11 @@ async fn reset(_cli: &Cli) -> Result<()> {
     let result = client.query("SHOW TABLES").fetch_all::<String>().await?;
 
     if result.is_empty() {
-        println!("No tables found in the database.");
+        info!("No tables found in the database.");
         return Ok(());
     }
 
-    println!(
+    info!(
         "Are you sure you want to drop the table{} {}? [y/N]",
         if result.len() > 1 { "s" } else { "" },
         result.join(", ")
@@ -182,7 +271,7 @@ async fn reset(_cli: &Cli) -> Result<()> {
         .expect("Failed to read line");
 
     if confirmation.trim().to_lowercase() != "y" {
-        println!("No changes made, exiting.");
+        info!("No changes made, exiting.");
         return Ok(());
     }
 
@@ -195,7 +284,7 @@ async fn reset(_cli: &Cli) -> Result<()> {
                 .execute()
                 .await
                 .expect("Failed to drop table");
-            println!("Dropped table: {table_name}");
+            info!("Dropped table: {table_name}");
         })
     });
 
@@ -229,7 +318,7 @@ async fn version() -> Result<u32, DbError> {
 
     let version = result.parse()?;
 
-    println!("Current database version: {version}");
+    info!("Current database version: {version}");
 
     Ok(version)
 }
@@ -237,6 +326,15 @@ async fn version() -> Result<u32, DbError> {
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv()?;
+
+    let filter = tracing_subscriber::filter::Targets::new()
+        .with_default(tracing::Level::TRACE)
+        .with_target("hyper_util", tracing::Level::INFO);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().compact())
+        .with(filter)
+        .init();
 
     let cli = Cli::parse();
 
