@@ -137,15 +137,11 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
     let (steps, direction) = if current_version > target_version {
         info!("Downgrading database from version {current_version} to {target_version}");
 
-        info!("Versions: {:?}", versions);
-
         let migrations_steps: Vec<_> = versions
             .iter()
             .filter(|m| m.version <= current_version && m.version > target_version)
             .rev()
             .collect();
-
-        info!("Steps: {:?}", migrations_steps);
 
         (migrations_steps, "down")
     } else {
