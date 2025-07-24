@@ -1,5 +1,5 @@
 pub mod authorization;
 pub mod constants;
-pub mod public_stash;
-pub mod rate_limiting;
+pub mod public_stash_worker;
+pub mod rate_limit;
 pub mod types;

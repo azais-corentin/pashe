@@ -7,11 +7,12 @@ use dotenv::dotenv;
 use oauth2::reqwest;
 use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, USER_AGENT};
 use std::{env, sync::Arc};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt};
 
-use crate::poe::{public_stash::Crawl, rate_limiting::RateLimitMiddleware};
+use crate::poe::rate_limit::RateLimitMiddleware;
 use tokio::signal;
 
 async fn get_access_token(http_client: &reqwest::Client) -> Result<String> {
@@ -106,6 +107,8 @@ async fn main() -> Result<()> {
         .await?
         .json::<serde_json::Value>()
         .await?;
+
+    debug!("Received response from poe.ninja: {:?}", ninja);
     let next_change_id: String = ninja["next_change_id"]
         .as_str()
         .ok_or(anyhow::anyhow!(
@@ -124,62 +127,70 @@ async fn main() -> Result<()> {
 
     info!("Starting crawler at next_change_id: {}", next_change_id);
 
-    let stash_crawler = Arc::new(poe::public_stash::Crawler::new(shutdown_token.clone()));
-    stash_crawler
-        .crawl(Arc::new(http_client), next_change_id.to_string())
-        .await?;
+    let stash_crawler = Arc::new(poe::public_stash_worker::PublicStashWorker::new(
+        shutdown_token.clone(),
+    ));
+
+    // Set up channels for concurrent crawling
+    let (next_change_id_tx, mut next_change_id_rx) = mpsc::unbounded_channel::<String>();
+    let (stash_changes_tx, stash_changes_rx) =
+        mpsc::unbounded_channel::<poe::types::PublicStashTabs>();
+
+    // Start the stash processor task
+    let processor_self = Arc::clone(&stash_crawler);
+    let processor_handle = tokio::spawn(async move {
+        processor_self.process_stash(stash_changes_rx).await;
+    });
+
+    // Send the initial change ID to start the process
+    next_change_id_tx.send(next_change_id)?;
+
+    // Main crawling loop
+    loop {
+        tokio::select! {
+            // Check for shutdown
+            _ = shutdown_token.cancelled() => {
+                debug!("Shutting down crawler");
+                break;
+            }
+
+            // Process new change IDs
+            Some(change_id) = next_change_id_rx.recv() => {
+                let client_clone = Arc::new(http_client.clone());
+                let next_change_id_tx_clone = next_change_id_tx.clone();
+                let stash_changes_tx_clone = stash_changes_tx.clone();
+                let stash_crawler_clone = Arc::clone(&stash_crawler);
+
+                // Spawn a new task for each stash crawler
+                tokio::spawn(async move {
+                    if let Err(e) = stash_crawler_clone.fetch_stash(
+                        client_clone,
+                        change_id,
+                        next_change_id_tx_clone,
+                        stash_changes_tx_clone,
+                    ).await {
+                        error!("Stash crawler failed: {}", e);
+                    }
+                });
+            }
+
+            // Break if the channel is closed and no more IDs are coming
+            else => break,
+        }
+    }
+
+    // Clean shutdown: drop the senders to signal processors to stop
+    drop(next_change_id_tx);
+    drop(stash_changes_tx);
+
+    // Wait for the processor to finish
+    if let Err(e) = processor_handle.await {
+        error!("Processor task failed: {}", e);
+    }
 
     shutdown_token.cancelled().await;
 
     info!("Shutdown");
-
-    /*
-    while !shutdown_token.is_cancelled() {
-        let my_stashes: Vec<_> = stash_changes
-            .stashes
-            .iter()
-            .filter(|stash| {
-                stash
-                    .account_name
-                    .as_ref()
-                    .map_or(false, |name| name.to_lowercase().contains("haellsigh"))
-            })
-            .collect();
-
-        if !my_stashes.is_empty() {
-            info!("Found {} stashes belonging to Haellsigh", my_stashes.len());
-        }
-
-        for stash in my_stashes {
-            for item in &stash.items {
-                info!(
-                    "Found item: {}, {} ({})",
-                    item.name, item.type_line, item.base_type
-                );
-            }
-        }
-
-        next_change_id = stash_changes.next_change_id;
-    }
-    */
-
-    // let client = db::get_client(
-    //     &clickhouse_url,
-    //     &clickhouse_user,
-    //     &clickhouse_password,
-    //     &clickhouse_database,
-    // );
-
-    // db::create_tables(&client).await?;
-
-    // client
-    //     .query(
-    //         "
-    //     INSERT INTO items (item) VALUES ('Sample Item 1'), ('Sample Item 2'), ('Sample Item 3')
-    // ",
-    //     )
-    //     .execute()
-    //     .await?;
 
     Ok(())
 }
