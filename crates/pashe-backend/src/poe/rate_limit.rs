@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use human_repr::HumanDuration;
 use reqwest::{Response, StatusCode};
 use reqwest_middleware::{Middleware, Next};
 use std::collections::HashMap;
@@ -60,7 +61,10 @@ impl Middleware for RateLimitMiddleware {
         }; // Lock is released here
 
         if !wait_duration.is_zero() {
-            tracing::warn!("Proactive rate limit: waiting for {:?}", wait_duration);
+            tracing::warn!(
+                "Proactive rate limit: waiting for {}",
+                wait_duration.human_duration()
+            );
             tokio::time::sleep(wait_duration).await;
         }
 
@@ -87,8 +91,8 @@ impl Middleware for RateLimitMiddleware {
                     if let Ok(seconds) = retry_after.to_str().unwrap_or("5").parse::<u64>() {
                         let wait_duration = Duration::from_secs(seconds);
                         tracing::warn!(
-                            "Reactive rate limit (429): waiting for {:?} before retrying. Retries left: {}",
-                            wait_duration,
+                            "Reactive rate limit (429): waiting for {} before retrying. Retries left: {}",
+                            wait_duration.human_duration(),
                             retries
                         );
                         tokio::time::sleep(wait_duration).await;
@@ -144,7 +148,6 @@ impl Middleware for RateLimitMiddleware {
                             ban_duration_on_breach: limit_parts[2],
                         };
 
-                        tracing::info!("Updating rule '{}': {:?}", rule, new_state);
                         state_map.insert(rule.to_string(), new_state);
                     }
                 }

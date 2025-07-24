@@ -9,8 +9,4 @@ license = "GNU GPLv3"
 authors = ["haellsigh@gmail.com"]
 repository = "https://github.com/azais-corentin/pashe-backend"
 
-[workspace.dependencies]
-db = { path = "crates/db" }
-pashe-backend = { path = "crates/pashe-backend" }
-
 [workspace.lints.clippy]
