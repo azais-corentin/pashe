@@ -101,6 +101,14 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
     let directory = std::env::current_dir()?.join(&cli.directory);
     let versions = get_available_migration_versions(&directory)?;
 
+    if versions.is_empty() {
+        info!(
+            "No migrations found in the directory: {}",
+            directory.display()
+        );
+        return Ok(());
+    }
+
     debug!(
         "Available migration(s): {}",
         versions
