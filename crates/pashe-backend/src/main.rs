@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt};
 
-use crate::poe::{public_stash::Crawl, rate_limiting::RateLimitingMiddleware};
+use crate::poe::{public_stash::Crawl, rate_limiting::RateLimitMiddleware};
 use tokio::signal;
 
 async fn get_access_token(http_client: &reqwest::Client) -> Result<String> {
@@ -99,15 +99,6 @@ async fn main() -> Result<()> {
         HeaderValue::from_str(&format!("Bearer {access_token}"))?,
     );
 
-    let http_client = reqwest::ClientBuilder::new()
-        .redirect(reqwest::redirect::Policy::none())
-        .default_headers(headers.clone())
-        .build()?;
-
-    let http_client = reqwest_middleware::ClientBuilder::new(http_client)
-        .with(RateLimitingMiddleware::default())
-        .build();
-
     debug!("Fetching initial next_change_id from poe.ninja");
     let ninja = http_client
         .get("https://poe.ninja/api/data/getstats")
@@ -121,6 +112,15 @@ async fn main() -> Result<()> {
             "Failed to get next_change_id from poe.ninja response"
         ))?
         .to_string();
+
+    let http_client = reqwest::ClientBuilder::new()
+        .redirect(reqwest::redirect::Policy::none())
+        .default_headers(headers.clone())
+        .build()?;
+
+    let http_client = reqwest_middleware::ClientBuilder::new(http_client)
+        .with(RateLimitMiddleware::default())
+        .build();
 
     info!("Starting crawler at next_change_id: {}", next_change_id);
 
