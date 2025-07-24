@@ -164,6 +164,8 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
             .join(", ")
     );
 
+    let mut latest_version = current_version;
+
     for m in steps {
         let file = directory.join(format!("{:06}_{}.{}.sql", m.version, m.name, direction));
         info!("Applying migration file: {}", file.display());
@@ -179,6 +181,11 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
                 .await
                 .with_context(|| format!("Failed to execute query: {query}"))?;
         }
+        latest_version = if direction == "up" {
+            m.version
+        } else {
+            m.version - 1
+        };
     }
 
     // Update the schema_migrations table
@@ -189,13 +196,13 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
         .with_context(|| "Failed to delete old version from schema_migrations")?;
 
     db.query("INSERT INTO schema_migrations (version) VALUES (?)")
-        .bind(target_version)
+        .bind(latest_version)
         .execute()
         .await
         .with_context(|| {
             format!(
                 "Failed to update schema_migrations to version {}",
-                target_version
+                latest_version
             )
         })?;
 
