@@ -1,9 +1,9 @@
-use clickhouse::Client;
+mod client;
+mod error;
+mod schema;
 
-pub fn get_client(url: &str, user: &str, password: &str, database: &str) -> clickhouse::Client {
-    Client::default()
-        .with_url(url)
-        .with_user(user)
-        .with_password(password)
-        .with_database(database)
-}
+pub use client::Client;
+pub use error::Error;
+pub use schema::{
+    Account, Item, PeriodType, SchemaMigration, Stash, StatisticsEvent, StatisticsPerPeriod,
+};

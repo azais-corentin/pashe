@@ -1,5 +1,9 @@
-use crate::poe::{constants::BASE_URL, types::PublicStashTabs};
+use crate::{
+    db::{self, StatisticsEvent},
+    poe::{constants::BASE_URL, types::PublicStashTabs},
+};
 use anyhow::{Context, Result};
+use chrono::Utc;
 use human_repr::HumanCount;
 use std::sync::{
     Arc,
@@ -32,7 +36,7 @@ impl PublicStashWorker {
         client: Arc<reqwest_middleware::ClientWithMiddleware>,
         change_id: String,
         next_change_id_tx: mpsc::UnboundedSender<String>,
-        stash_changes_tx: mpsc::UnboundedSender<PublicStashTabs>,
+        stash_changes_tx: mpsc::UnboundedSender<(PublicStashTabs, u32)>,
     ) -> Result<()> {
         let url = format!("{BASE_URL}/public-stash-tabs?id={change_id}");
         debug!("Fetching change id: {}", change_id);
@@ -71,14 +75,14 @@ impl PublicStashWorker {
             .await
             .with_context(|| format!("Failed to read response body from {url}"))?;
 
-        let body_size = text_body.len();
-        self.bytes.fetch_add(body_size as u64, Ordering::SeqCst);
-
         let stash_changes = serde_json::from_str::<PublicStashTabs>(&text_body)
             .with_context(|| format!("Failed to parse response body from {url}"))?;
 
         // Send the parsed stash data along with byte count
-        if stash_changes_tx.send(stash_changes).is_err() {
+        if stash_changes_tx
+            .send((stash_changes, text_body.len() as u32))
+            .is_err()
+        {
             debug!("Stash changes receiver dropped");
         }
 
@@ -88,34 +92,50 @@ impl PublicStashWorker {
     /// Processes stash changes from the queue and updates statistics
     pub async fn process_stash(
         self: Arc<Self>,
-        mut stash_changes_rx: mpsc::UnboundedReceiver<PublicStashTabs>,
+        mut stash_changes_rx: mpsc::UnboundedReceiver<(PublicStashTabs, u32)>,
+        db: db::Client,
     ) {
-        while let Some(stash_changes) = stash_changes_rx.recv().await {
+        while let Some((stash_changes, byte_count)) = stash_changes_rx.recv().await {
             if self.shutdown_token.is_cancelled() {
                 debug!("Shutting down stash processor");
                 break;
             }
 
-            // Update statistics
-            self.stash_count
-                .fetch_add(stash_changes.stashes.len() as u64, Ordering::SeqCst);
-
-            let items_in_batch: u64 = stash_changes
+            let local_stash_count = stash_changes.stashes.len() as u32;
+            let local_item_count: u32 = stash_changes
                 .stashes
                 .iter()
-                .map(|stash| stash.items.len() as u64)
+                .map(|stash| stash.items.len() as u32)
                 .sum();
 
-            self.item_count.fetch_add(items_in_batch, Ordering::SeqCst);
+            // Update statistics
+            self.stash_count
+                .fetch_add(local_stash_count as u64, Ordering::SeqCst);
+            self.item_count
+                .fetch_add(local_item_count as u64, Ordering::SeqCst);
+            self.bytes.fetch_add(byte_count as u64, Ordering::SeqCst);
 
             debug!(
-                "Processed batch: {} stashes / {} items. Total: {} stashes / {} items / {}",
-                stash_changes.stashes.len(),
-                items_in_batch,
+                "Processed batch: {}/{} stashes / {}/{} items / {}/{}",
+                local_stash_count,
                 self.stash_count.load(Ordering::SeqCst),
+                local_item_count,
                 self.item_count.load(Ordering::SeqCst),
+                byte_count.human_count_bytes(),
                 self.bytes.load(Ordering::SeqCst).human_count_bytes()
             );
+
+            if let Err(e) = db
+                .insert_statistics_event(StatisticsEvent {
+                    timestamp: Utc::now(),
+                    stash_count: local_stash_count,
+                    item_count: local_item_count,
+                    bytes: byte_count,
+                })
+                .await
+            {
+                error!("Failed to insert statistics event: {}", e);
+            }
         }
     }
 }
