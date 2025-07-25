@@ -10,10 +10,8 @@ use tokio::time::Instant;
 // Represents the state of a single rate limit rule
 #[derive(Debug, Clone)]
 struct RuleState {
-    max_hits: u32,
     remaining_hits: u32,
     reset_time: Instant,
-    ban_duration_on_breach: u64,
 }
 
 // Custom middleware for handling the specific rate limiting logic
@@ -114,8 +112,8 @@ impl Middleware for RateLimitMiddleware {
             let mut state_map = self.state.lock().unwrap();
 
             for rule in rules.filter(|r| !r.is_empty()) {
-                let limit_key = format!("X-Rate-Limit-{}", rule);
-                let state_key = format!("X-Rate-Limit-{}-State", rule);
+                let limit_key = format!("X-Rate-Limit-{rule}");
+                let state_key = format!("X-Rate-Limit-{rule}-State");
 
                 if let (Some(limit_val), Some(state_val)) =
                     (res.headers().get(&limit_key), res.headers().get(&state_key))
@@ -141,11 +139,9 @@ impl Middleware for RateLimitMiddleware {
                         let current_hits = state_parts[0] as u32;
 
                         let new_state = RuleState {
-                            max_hits,
                             remaining_hits: max_hits.saturating_sub(current_hits),
                             reset_time: *self.last_request_time.lock().unwrap()
                                 + Duration::from_secs(period_secs),
-                            ban_duration_on_breach: limit_parts[2],
                         };
 
                         state_map.insert(rule.to_string(), new_state);

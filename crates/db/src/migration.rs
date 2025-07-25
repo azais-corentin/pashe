@@ -200,10 +200,7 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
         .execute()
         .await
         .with_context(|| {
-            format!(
-                "Failed to update schema_migrations to version {}",
-                latest_version
-            )
+            format!("Failed to update schema_migrations to version {latest_version}")
         })?;
 
     Ok(())
