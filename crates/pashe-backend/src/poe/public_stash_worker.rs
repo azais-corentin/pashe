@@ -1,6 +1,6 @@
 use crate::poe::{constants::BASE_URL, types::PublicStashTabs};
 use anyhow::{Context, Result};
-use human_repr::{HumanCount, HumanCountData, HumanDuration};
+use human_repr::HumanCount;
 use std::sync::{
     Arc,
     atomic::{AtomicU64, Ordering},
@@ -60,7 +60,7 @@ impl PublicStashWorker {
             .to_owned();
 
         // Send the next change ID immediately
-        if let Err(_) = next_change_id_tx.send(next_change_id) {
+        if next_change_id_tx.send(next_change_id).is_err() {
             debug!("Next change ID receiver dropped");
             return Ok(());
         }
@@ -78,7 +78,7 @@ impl PublicStashWorker {
             .with_context(|| format!("Failed to parse response body from {url}"))?;
 
         // Send the parsed stash data along with byte count
-        if let Err(_) = stash_changes_tx.send(stash_changes) {
+        if stash_changes_tx.send(stash_changes).is_err() {
             debug!("Stash changes receiver dropped");
         }
 

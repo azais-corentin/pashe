@@ -108,7 +108,6 @@ async fn main() -> Result<()> {
         .json::<serde_json::Value>()
         .await?;
 
-    debug!("Received response from poe.ninja: {:?}", ninja);
     let next_change_id: String = ninja["next_change_id"]
         .as_str()
         .ok_or(anyhow::anyhow!(
