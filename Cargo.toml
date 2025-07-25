@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/db", "crates/pashe-backend"]
+members = [
+    "crates/db",
+    "crates/pashe-backend",
+    "crates/pashe-frontend/src-tauri",
+]
 resolver = "3"
 
 [workspace.package]
