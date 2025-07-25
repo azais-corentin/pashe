@@ -15,11 +15,13 @@
                 "rust-lang.rust-analyzer",
                 "vadimcn.vscode-lldb",
                 "fill-labs.dependi",
-                "tamasfe.even-better-toml"
+                "tamasfe.even-better-toml",
+                "svelte.svelte-vscode",
+                "esbenp.prettier-vscode"
             ]
         }
     },
     "forwardPorts": [
-        8086
+        8086, 8123
     ]
 }
