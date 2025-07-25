@@ -133,12 +133,20 @@ async fn main() -> Result<()> {
     // Set up channels for concurrent crawling
     let (next_change_id_tx, mut next_change_id_rx) = mpsc::unbounded_channel::<String>();
     let (stash_changes_tx, stash_changes_rx) =
-        mpsc::unbounded_channel::<poe::types::PublicStashTabs>();
+        mpsc::unbounded_channel::<(poe::types::PublicStashTabs, u32)>();
+
+    // Initialize the database client
+    let db = db::Client::new(
+        &clickhouse_url,
+        &clickhouse_user,
+        &clickhouse_password,
+        &clickhouse_database,
+    );
 
     // Start the stash processor task
     let processor_self = Arc::clone(&stash_crawler);
     let processor_handle = tokio::spawn(async move {
-        processor_self.process_stash(stash_changes_rx).await;
+        processor_self.process_stash(stash_changes_rx, db).await;
     });
 
     // Send the initial change ID to start the process
