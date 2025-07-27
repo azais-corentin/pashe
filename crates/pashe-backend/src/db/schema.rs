@@ -11,41 +11,20 @@ pub struct SchemaMigration {
     pub applied_at: DateTime<Utc>,
 }
 
-/// Account information
-#[derive(Debug, Row, Serialize, Deserialize)]
-pub struct Account {
-    pub id: u64,
-    pub name: String,
-}
-
-/// Stash information linked to an account
-#[derive(Debug, Row, Serialize, Deserialize)]
-pub struct Stash {
-    /// Fixed 64-character identifier
-    #[serde(with = "serde_bytes")]
-    pub id: [u8; 64],
-    pub name: String,
-    pub account_id: u64,
-}
-
 /// Individual item in a stash
 #[derive(Debug, Row, Serialize, Deserialize)]
 pub struct Item {
-    /// Fixed 64-character identifier
-    #[serde(with = "serde_bytes")]
-    pub id: [u8; 64],
     #[serde(with = "clickhouse::serde::chrono::datetime")]
     pub timestamp: DateTime<Utc>,
-    pub realm: String,
-    /// References stashes.id
-    #[serde(with = "serde_bytes")]
-    pub stash_id: [u8; 64],
+    pub league: String,
+    pub stash_name: String,
+    pub account_name: String,
     pub name: String,
+    pub type_line: String,
     pub base: String,
     pub links: u8,
     pub ilvl: u8,
-    /// Note: ClickHouse uses UInt8 instead of bool for corrupted
-    pub corrupted: u8,
+    pub corrupted: bool,
     pub stack_size: u32,
     /// For gems
     pub level: u8,
@@ -61,7 +40,7 @@ pub struct Item {
 /// Statistics event tracking
 #[derive(Debug, Row, Serialize, Deserialize)]
 pub struct StatisticsEvent {
-    #[serde(skip_serializing, with = "clickhouse::serde::chrono::datetime")]
+    #[serde(with = "clickhouse::serde::chrono::datetime")]
     pub timestamp: DateTime<Utc>,
     pub stash_count: u32,
     pub item_count: u32,

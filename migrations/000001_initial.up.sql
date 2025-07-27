@@ -1,31 +1,15 @@
-CREATE TABLE accounts
-(
-    `id` UInt64,
-    `name` String
-)
-ENGINE = MergeTree
-ORDER BY id;
-
-CREATE TABLE stashes
-(
-    `id` FixedString(64),
-    `name` String,
-    `account_id` UInt64
-)
-ENGINE = MergeTree
-ORDER BY (account_id, id);
-
 CREATE TABLE items
 (
-    `id` FixedString(64),
     `timestamp` DateTime DEFAULT now(),
-    `realm` LowCardinality(String),
-    `stash_id` FixedString(64),
+    `league` LowCardinality(String),
+    `stash_name` String,
+    `account_name` String,
     `name` LowCardinality(String),
+    `type_line` LowCardinality(String),
     `base` LowCardinality(String),
     `links` UInt8,
     `ilvl` UInt8,
-    `corrupted` UInt8,
+    `corrupted` Bool,
     `stack_size` UInt32,
     `level` UInt8,
     `quality` UInt8,
@@ -34,8 +18,8 @@ CREATE TABLE items
     `influences` Array(LowCardinality(String))
 )
 ENGINE = MergeTree
-PARTITION BY toYYYYMMDD(timestamp)
-ORDER BY (id);
+PARTITION BY (league, toYYYYMMDD(timestamp))
+ORDER BY (league, base, links, ilvl, corrupted);
 
 CREATE TABLE statistics_events
 (

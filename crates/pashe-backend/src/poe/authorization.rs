@@ -3,6 +3,7 @@ use oauth2::basic::BasicClient;
 use oauth2::{ClientId, ClientSecret, Scope, TokenResponse, TokenUrl};
 use std::env;
 
+#[tracing::instrument(skip_all, level = "trace")]
 pub async fn fetch_access_token(http_client: &reqwest::Client) -> Result<String> {
     let client_id = env::var("CLIENT_ID").expect("Missing the CLIENT_ID environment variable.");
     let client_secret =

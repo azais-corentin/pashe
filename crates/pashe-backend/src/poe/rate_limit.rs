@@ -15,6 +15,7 @@ struct RuleState {
 }
 
 // Custom middleware for handling the specific rate limiting logic
+#[derive(Debug)]
 pub struct RateLimitMiddleware {
     state: Arc<Mutex<HashMap<String, RuleState>>>,
     last_request_time: Arc<Mutex<Instant>>,
@@ -31,6 +32,7 @@ impl Default for RateLimitMiddleware {
 
 #[async_trait]
 impl Middleware for RateLimitMiddleware {
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn handle(
         &self,
         req: reqwest::Request,
