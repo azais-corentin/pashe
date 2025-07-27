@@ -195,7 +195,7 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
         .await
         .with_context(|| "Failed to delete old version from schema_migrations")?;
 
-    db.query("INSERT INTO schema_migrations (version) VALUES (?)")
+    db.query("INSERT INTO schema_migrations (version) SETTINGS async_insert=1, wait_for_async_insert=1 VALUES (?)")
         .bind(latest_version)
         .execute()
         .await
