@@ -4,7 +4,13 @@ use clap::{Parser, Subcommand};
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
     /// Working directory
-    #[arg(short, long, value_name = "DIR", default_value = ".", global = true)]
+    #[arg(
+        short,
+        long,
+        value_name = "DIR",
+        default_value = "migrations",
+        global = true
+    )]
     pub directory: String,
 
     #[command(subcommand)]
