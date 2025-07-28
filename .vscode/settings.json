@@ -1,19 +1,20 @@
 {
-    "editor.inlayHints.enabled": "offUnlessPressed",
-    "sqltools.highlightQuery": false,
-    "sqltools.connections": [
-        {
-            "server": "http://db",
-            "port": 8123,
-            "database": "pashe",
-            "useJWT": false,
-            "requestTimeout": 30000,
-            "enableTls": false,
-            "previewLimit": 50,
-            "password": "pashe",
-            "username": "pashe",
-            "driver": "ClickHouse",
-            "name": "pashe"
-        }
-    ],
+  "editor.inlayHints.enabled": "offUnlessPressed",
+  "sqltools.highlightQuery": false,
+  "sqltools.connections": [
+    {
+      "server": "http://db",
+      "port": 8123,
+      "database": "pashe",
+      "useJWT": false,
+      "requestTimeout": 30000,
+      "enableTls": false,
+      "previewLimit": 50,
+      "password": "pashe",
+      "username": "pashe",
+      "driver": "ClickHouse",
+      "name": "pashe"
+    }
+  ],
+  "rust-analyzer.cargo.targetDir": true
 }
