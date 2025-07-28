@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{Instrument, debug, error};
 
 #[derive(Debug)]
 pub struct PublicStashWorker {
@@ -89,6 +89,7 @@ impl PublicStashWorker {
         // Read all decompressed data
         gzip_decoder
             .read_to_end(&mut decompressed_data)
+            .instrument(tracing::trace_span!("decompress_gzip"))
             .await
             .with_context(|| format!("Failed to decompress gzip response from {url}"))?;
 
