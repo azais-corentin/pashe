@@ -24,7 +24,7 @@ jobs:
           toolchain: stable
 
       - name: Build db binary
-        run: cargo build --bin db --verbose
+        run: cargo build --bin db
 
   backend:
     name: Build pashe-backend binary
@@ -40,7 +40,7 @@ jobs:
           toolchain: stable
 
       - name: Build pashe-backend binary
-        run: cargo build --bin pashe-backend --verbose
+        run: cargo build --bin pashe-backend
 
   frontend:
     name: Build and test pashe-frontend
