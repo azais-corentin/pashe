@@ -14,7 +14,6 @@ pub enum PeriodType {
     Day = 3,
     Hour = 4,
     Minute = 5,
-    What1 = 20,
 }
 
 #[derive(Debug, Row, Serialize, Deserialize)]
@@ -24,7 +23,8 @@ pub struct StatisticsPerPeriod {
     pub period_start: DateTime<Utc>,
     pub total_stash_count: u64,
     pub total_item_count: u64,
-    pub total_bytes: u64,
+    pub total_compressed_bytes: u64,
+    pub total_decompressed_bytes: u64,
 }
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -59,7 +59,8 @@ async fn get_statistics_per_periods() -> Result<Vec<StatisticsPerPeriod>, String
             period_start,
             sum(total_stash_count) AS total_stash_count,
             sum(total_item_count) AS total_item_count,
-            sum(total_bytes) AS total_bytes
+            sum(total_compressed_bytes) AS total_compressed_bytes,
+            sum(total_decompressed_bytes) AS total_decompressed_bytes
         FROM statistics_per_periods
         GROUP BY
             period_type,

@@ -2,12 +2,22 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
 
+  const PeriodType = {
+    Total: 0,
+    Year: 1,
+    Month: 2,
+    Day: 3,
+    Hour: 4,
+    Minute: 5,
+  };
+
   interface StatisticsPeriod {
-    period_type: string;
+    period_type: number;
     period_start: string;
     total_stash_count: number;
     total_item_count: number;
-    total_bytes: number;
+    total_compressed_bytes: number;
+    total_decompressed_bytes: number;
   }
 
   let name = $state("What!");
@@ -51,6 +61,11 @@
     return `${size.toFixed(2)} ${units[unitIndex]}`;
   }
 
+  function getPeriodTypeName(periodType: number): string {
+    const periodTypeNames = ["Total", "Year", "Month", "Day", "Hour", "Minute"];
+    return periodTypeNames[periodType] || "Unknown";
+  }
+
   onMount(() => {
     loadStatistics();
   });
@@ -84,17 +99,19 @@
             <th>Period Start</th>
             <th>Total Stash Count</th>
             <th>Total Item Count</th>
-            <th>Total Bytes</th>
-          </tr>
-        </thead>
+            <th>Total Compressed Bytes</th>
+            <th>Total Decompressed Bytes</th>
+          </tr></thead
+        >
         <tbody>
           {#each statistics as stat}
             <tr>
-              <td>{stat.period_type}</td>
+              <td>{getPeriodTypeName(stat.period_type)}</td>
               <td>{stat.period_start}</td>
               <td>{stat.total_stash_count.toLocaleString()}</td>
               <td>{stat.total_item_count.toLocaleString()}</td>
-              <td>{formatBytes(stat.total_bytes)}</td>
+              <td>{formatBytes(stat.total_compressed_bytes)}</td>
+              <td>{formatBytes(stat.total_decompressed_bytes)}</td>
             </tr>
           {/each}
         </tbody>
