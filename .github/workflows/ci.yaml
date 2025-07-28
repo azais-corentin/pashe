@@ -50,7 +50,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: "macos-latest" # Arm based macs
+            args: "--target aarch64-apple-darwin"
+          - os: "macos-latest" # Intel based macs
+            args: "--target x86_64-apple-darwin"
+          - os: "ubuntu-latest" # Linux
+            args: ""
+          - os: "windows-latest" # Windows
+            args: ""
 
     steps:
       - name: Checkout code
