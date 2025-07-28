@@ -18,8 +18,10 @@ RUN curl -fsSL 'https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key'
     echo "deb [signed-by=/usr/share/keyrings/clickhouse-keyring.gpg arch=$(dpkg --print-architecture)] https://packages.clickhouse.com/deb stable main" | sudo tee /etc/apt/sources.list.d/clickhouse.list
 
 # Install dependencies
-RUN apt-get update && apt-get install -y \
-    apt-transport-https ca-certificates clickhouse-client curl gnupg pkg-config && \
+RUN apt-get update && apt-get install -y \ 
+    apt-transport-https build-essential ca-certificates clickhouse-client \
+    curl file gnupg libayatana-appindicator3-dev librsvg2-dev libssl-dev \
+    libwebkit2gtk-4.1-dev libxdo-dev pkg-config wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Install mold
