@@ -1,8 +1,8 @@
-use clickhouse::{Client, Row};
 use chrono::{DateTime, Utc};
+use clickhouse::{Client, Row};
 use serde::{Deserialize, Serialize};
-use std::env;
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::env;
 
 /// Period types for statistics aggregation
 #[derive(Debug, Serialize_repr, Deserialize_repr)]
@@ -36,7 +36,7 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 async fn get_statistics_per_periods() -> Result<Vec<StatisticsPerPeriod>, String> {
     // Load environment variables
-    dotenv::dotenv().ok();
+    dotenvy::dotenv()?;
 
     let clickhouse_url =
         env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set in .env file");

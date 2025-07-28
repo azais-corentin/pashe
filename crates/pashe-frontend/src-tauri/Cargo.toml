@@ -18,12 +18,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.3.1", features = [] }
 
 [dependencies]
-tauri = { version = "2.7.0", features = [] }
-tauri-plugin-opener = "2.4.0"
+chrono = "0.4.41"
+clickhouse = { version = "0.13.3", features = ["chrono"] }
+dotenvy = "0.15.7"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
-clickhouse = { version = "0.13.3", features = ["chrono"] }
-tokio = { version = "1.47.0", features = ["full"] }
-dotenv = "0.15.0"
 serde_repr = "0.1.20"
-chrono = "0.4.41"
+tauri = { version = "2.7.0", features = [] }
+tauri-plugin-opener = "2.4.0"
+tokio = { version = "1.47.0", features = ["full"] }

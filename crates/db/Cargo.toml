@@ -13,7 +13,7 @@ rust-version.workspace = true
 anyhow = "1.0.98"
 clap = { version = "4.5.41", features = ["derive"] }
 clickhouse = { version = "0.13.3", features = ["chrono", "inserter", "uuid"] }
-dotenv = "0.15.0"
+dotenvy = "0.15.7"
 futures = "0.3.31"
 thiserror = "2.0.12"
 tokio = { version = "1.47.0", features = ["full"] }

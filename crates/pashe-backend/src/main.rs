@@ -3,7 +3,6 @@ mod db;
 mod poe;
 
 use anyhow::Result;
-use dotenv::dotenv;
 use oauth2::reqwest;
 use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, USER_AGENT};
 use std::{env, sync::Arc};
@@ -62,7 +61,7 @@ fn setup_shutdown_handler() -> CancellationToken {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv()?;
+    dotenvy::dotenv()?;
     const PACKAGE_VERSION: &str = env!("CARGO_PKG_VERSION");
     const PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
     const PACKAGE_AUTHOR: &str = env!("CARGO_PKG_AUTHORS");

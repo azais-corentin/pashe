@@ -8,9 +8,10 @@ use serial_test::serial;
 use std::fs;
 use std::path::PathBuf;
 
-fn setup() {
-    dotenv::dotenv().ok();
+fn setup() -> Result<()> {
+    dotenvy::dotenv()?;
     let _ = tracing_subscriber::fmt::try_init();
+    Ok(())
 }
 
 fn get_cli(migrations_path: &str, command: Commands) -> Cli {
@@ -29,7 +30,7 @@ async fn cleanup(migrations_path: &str) {
 #[tokio::test]
 #[serial]
 async fn test_migration_cycle() -> Result<()> {
-    setup();
+    setup()?;
     let migrations_path = "test_migrations_cycle";
     cleanup(migrations_path).await;
     // Ensure the directory is clean before starting

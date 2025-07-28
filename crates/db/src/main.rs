@@ -8,7 +8,7 @@ use tracing_subscriber::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv::dotenv()?;
+    dotenvy::dotenv()?;
 
     let filter = tracing_subscriber::filter::Targets::new()
         .with_default(tracing::Level::TRACE)
