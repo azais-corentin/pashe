@@ -137,6 +137,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-compression"
+version = "0.4.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddb939d66e4ae03cee6091612804ba446b12878410cfa17f785f4dd67d4014e8"
+dependencies = [
+ "flate2",
+ "futures-core",
+ "memchr",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "async-executor"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -850,7 +863,7 @@ dependencies = [
  "anyhow",
  "clap",
  "clickhouse",
- "dotenv",
+ "dotenvy",
  "futures",
  "serial_test",
  "thiserror 2.0.12",
@@ -965,10 +978,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotenv"
-version = "0.15.0"
+name = "dotenvy"
+version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
+checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "dpi"
@@ -2913,10 +2926,12 @@ name = "pashe-backend"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-compression",
  "async-trait",
  "chrono",
  "clickhouse",
- "dotenv",
+ "dotenvy",
+ "futures-util",
  "http",
  "human-repr",
  "oauth2",
@@ -2942,7 +2957,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "clickhouse",
- "dotenv",
+ "dotenvy",
  "serde",
  "serde_json",
  "serde_repr",

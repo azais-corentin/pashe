@@ -44,7 +44,8 @@ pub struct StatisticsEvent {
     pub timestamp: DateTime<Utc>,
     pub stash_count: u32,
     pub item_count: u32,
-    pub bytes: u32,
+    pub compressed_bytes: u32,
+    pub decompressed_bytes: u32,
 }
 
 /// Period types for statistics aggregation

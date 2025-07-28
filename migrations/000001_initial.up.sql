@@ -26,7 +26,8 @@ CREATE TABLE statistics_events
     `timestamp` DateTime DEFAULT now(),
     `stash_count` UInt32,
     `item_count` UInt32,
-    `bytes` UInt32
+    `compressed_bytes` UInt32,
+    `decompressed_bytes` UInt32
 )
 ENGINE = MergeTree
 ORDER BY timestamp;
@@ -37,7 +38,8 @@ CREATE TABLE statistics_per_periods
     `period_start` DateTime,
     `total_stash_count` UInt64,
     `total_item_count` UInt64,
-    `total_bytes` UInt64
+    `total_compressed_bytes` UInt64,
+    `total_decompressed_bytes` UInt64
 )
 ENGINE = SummingMergeTree
 ORDER BY (period_type, period_start);
@@ -51,7 +53,8 @@ SELECT
     periods.2 AS period_start,
     sum(stash_count) AS total_stash_count,
     sum(item_count) AS total_item_count,
-    sum(bytes) AS total_bytes
+    sum(compressed_bytes) AS total_compressed_bytes,
+    sum(decompressed_bytes) AS total_decompressed_bytes
 FROM
     statistics_events
 ARRAY JOIN

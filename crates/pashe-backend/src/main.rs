@@ -3,6 +3,7 @@ mod db;
 mod poe;
 
 use anyhow::Result;
+use http::header::ACCEPT_ENCODING;
 use oauth2::reqwest;
 use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, USER_AGENT};
 use std::{env, sync::Arc};
@@ -98,6 +99,7 @@ async fn main() -> Result<()> {
         AUTHORIZATION,
         HeaderValue::from_str(&format!("Bearer {access_token}"))?,
     );
+    headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
 
     debug!("Fetching initial next_change_id from poe.ninja");
     let ninja = http_client
@@ -116,6 +118,7 @@ async fn main() -> Result<()> {
 
     let http_client = reqwest::ClientBuilder::new()
         .redirect(reqwest::redirect::Policy::none())
+        .no_gzip()
         .default_headers(headers.clone())
         .build()?;
 
@@ -132,7 +135,7 @@ async fn main() -> Result<()> {
     // Set up channels for concurrent crawling
     let (next_change_id_tx, mut next_change_id_rx) = mpsc::unbounded_channel::<String>();
     let (stash_changes_tx, stash_changes_rx) =
-        mpsc::unbounded_channel::<(poe::types::PublicStashTabs, u32)>();
+        mpsc::unbounded_channel::<(poe::types::PublicStashTabs, u32, u32)>();
 
     // Initialize the database client
     let db = db::Client::new(

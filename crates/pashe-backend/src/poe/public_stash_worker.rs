@@ -3,12 +3,12 @@ use crate::{
     poe::{constants::BASE_URL, types::PublicStashTabs},
 };
 use anyhow::{Context, Result};
+use async_compression::tokio::bufread::GzipDecoder;
 use chrono::Utc;
+use futures_util::StreamExt;
 use human_repr::HumanCount;
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::Arc;
+use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
@@ -16,19 +16,11 @@ use tracing::{debug, error};
 #[derive(Debug)]
 pub struct PublicStashWorker {
     shutdown_token: CancellationToken,
-    stash_count: AtomicU64,
-    item_count: AtomicU64,
-    bytes: AtomicU64,
 }
 
 impl PublicStashWorker {
     pub fn new(shutdown_token: CancellationToken) -> Self {
-        PublicStashWorker {
-            shutdown_token,
-            stash_count: AtomicU64::new(0),
-            item_count: AtomicU64::new(0),
-            bytes: AtomicU64::new(0),
-        }
+        PublicStashWorker { shutdown_token }
     }
 
     /// Crawls a single stash change and sends the next change ID and stash data to respective queues
@@ -38,7 +30,7 @@ impl PublicStashWorker {
         client: Arc<reqwest_middleware::ClientWithMiddleware>,
         change_id: String,
         next_change_id_tx: mpsc::UnboundedSender<String>,
-        stash_changes_tx: mpsc::UnboundedSender<(PublicStashTabs, u32)>,
+        stash_changes_tx: mpsc::UnboundedSender<(PublicStashTabs, u32, u32)>,
     ) -> Result<()> {
         debug!("Fetching change id: {}", change_id);
 
@@ -73,17 +65,45 @@ impl PublicStashWorker {
         }
 
         // Now get the body and parse JSON
-        let text_body = response
-            .text()
+        let mut compressed_bytes = 0u32;
+
+        // Get the response as a byte stream
+        let mut bytes_stream = response.bytes_stream();
+        let mut compressed_data = Vec::new();
+
+        // Collect all compressed bytes while counting them
+        while let Some(chunk) = bytes_stream.next().await {
+            let chunk = chunk.with_context(|| format!("Failed to read chunk from {url}"))?;
+            compressed_bytes += chunk.len() as u32;
+            compressed_data.extend_from_slice(&chunk);
+        }
+
+        // Create a stream reader from the compressed data
+        let compressed_reader = std::io::Cursor::new(compressed_data);
+        let buf_reader = tokio::io::BufReader::new(compressed_reader);
+
+        // Decompress using gzip
+        let mut gzip_decoder = GzipDecoder::new(buf_reader);
+        let mut decompressed_data = Vec::new();
+
+        // Read all decompressed data
+        gzip_decoder
+            .read_to_end(&mut decompressed_data)
             .await
-            .with_context(|| format!("Failed to read response body from {url}"))?;
+            .with_context(|| format!("Failed to decompress gzip response from {url}"))?;
+
+        let decompressed_bytes = decompressed_data.len() as u32;
+
+        // Convert decompressed bytes to string
+        let text_body = String::from_utf8(decompressed_data)
+            .with_context(|| format!("Failed to convert decompressed data to UTF-8 from {url}"))?;
 
         let stash_changes = serde_json::from_str::<PublicStashTabs>(&text_body)
             .with_context(|| format!("Failed to parse response body from {url}"))?;
 
-        // Send the parsed stash data along with byte count
+        // Send the parsed stash data along with compressed byte count
         if stash_changes_tx
-            .send((stash_changes, text_body.len() as u32))
+            .send((stash_changes, compressed_bytes, decompressed_bytes))
             .is_err()
         {
             debug!("Stash changes receiver dropped");
@@ -96,10 +116,12 @@ impl PublicStashWorker {
     #[tracing::instrument(skip_all, level = "trace")]
     pub async fn process_stash(
         self: Arc<Self>,
-        mut stash_changes_rx: mpsc::UnboundedReceiver<(PublicStashTabs, u32)>,
+        mut stash_changes_rx: mpsc::UnboundedReceiver<(PublicStashTabs, u32, u32)>,
         db: db::Client,
     ) {
-        while let Some((stash_changes, byte_count)) = stash_changes_rx.recv().await {
+        while let Some((stash_changes, compressed_bytes, decompressed_bytes)) =
+            stash_changes_rx.recv().await
+        {
             if self.shutdown_token.is_cancelled() {
                 debug!("Shutting down stash processor");
                 break;
@@ -144,36 +166,29 @@ impl PublicStashWorker {
                 error!("Failed to insert items: {}", e);
             }
 
-            let local_stash_count = stash_changes.stashes.len() as u32;
-            let local_item_count: u32 = stash_changes
+            let stash_count = stash_changes.stashes.len() as u32;
+            let item_count: u32 = stash_changes
                 .stashes
                 .iter()
                 .map(|stash| stash.items.len() as u32)
                 .sum();
 
-            // Update statistics
-            self.stash_count
-                .fetch_add(local_stash_count as u64, Ordering::SeqCst);
-            self.item_count
-                .fetch_add(local_item_count as u64, Ordering::SeqCst);
-            self.bytes.fetch_add(byte_count as u64, Ordering::SeqCst);
-
             debug!(
-                "Processed batch: {}/{} stashes / {}/{} items / {}/{}",
-                local_stash_count.human_count_bare(),
-                self.stash_count.load(Ordering::SeqCst).human_count_bare(),
-                local_item_count.human_count_bare(),
-                self.item_count.load(Ordering::SeqCst).human_count_bare(),
-                byte_count.human_count_bytes(),
-                self.bytes.load(Ordering::SeqCst).human_count_bytes()
+                "Processed batch: {} stashes / {} items / {}/{} bytes ({:.1}:1 ratio)",
+                stash_count.human_count_bare(),
+                item_count.human_count_bare(),
+                compressed_bytes.human_count_bytes(),
+                decompressed_bytes.human_count_bytes(),
+                decompressed_bytes as f64 / compressed_bytes as f64,
             );
 
             if let Err(e) = db
                 .insert_statistics_event(StatisticsEvent {
                     timestamp: Utc::now(),
-                    stash_count: local_stash_count,
-                    item_count: local_item_count,
-                    bytes: byte_count,
+                    stash_count,
+                    item_count,
+                    compressed_bytes,
+                    decompressed_bytes,
                 })
                 .await
             {
