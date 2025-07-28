@@ -30,7 +30,7 @@ pub struct StatisticsPerPeriod {
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
+    format!("Hello, {name}! You've been greeted from Rust!")
 }
 
 #[tauri::command]
@@ -71,7 +71,7 @@ async fn get_statistics_per_periods() -> Result<Vec<StatisticsPerPeriod>, String
 
     match client.query(query).fetch_all::<StatisticsPerPeriod>().await {
         Ok(results) => Ok(results),
-        Err(e) => Err(format!("Database error: {}", e)),
+        Err(e) => Err(format!("Database error: {e}")),
     }
 }
 
