@@ -36,7 +36,7 @@ fn greet(name: &str) -> String {
 #[tauri::command]
 async fn get_statistics_per_periods() -> Result<Vec<StatisticsPerPeriod>, String> {
     // Load environment variables
-    dotenvy::dotenv()?;
+    dotenvy::dotenv().expect("Failed to load .env file");
 
     let clickhouse_url =
         env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set in .env file");
