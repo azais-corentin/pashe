@@ -1,17 +1,20 @@
 use crate::{
-    db::{self, StatisticsEvent},
+    db::{self, ListingCurrency, StatisticsEvent},
     poe::{constants::BASE_URL, types::PublicStashTabs},
 };
 use anyhow::{Context, Result};
 use async_compression::tokio::bufread::GzipDecoder;
 use chrono::Utc;
 use futures_util::StreamExt;
-use human_repr::HumanCount;
+use human_repr::{HumanCount, HumanDuration, HumanThroughput};
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, error};
+use winnow::prelude::*;
+use winnow::{ascii::multispace1, combinator::alt, token::take_while};
 
 #[derive(Debug)]
 pub struct PublicStashWorker {
@@ -128,8 +131,12 @@ impl PublicStashWorker {
                 break;
             }
 
+            let start_time = std::time::Instant::now();
+
             let mut items = Vec::new();
             for stash in stash_changes.stashes.iter() {
+                let stash_price = extract_price(stash.stash.as_ref());
+
                 for item in stash.items.iter() {
                     let league = match &item.league {
                         Some(league) => league.clone(),
@@ -141,6 +148,15 @@ impl PublicStashWorker {
                     let (level, quality) = extract_gem_properties(item);
                     let influences = extract_influences(item);
                     let (passives, tier) = extract_passives_and_tier(item);
+                    let item_price = extract_price(item.note.as_ref());
+
+                    let final_price = if let Some(item_price) = item_price {
+                        item_price
+                    } else if let Some(stash_price_ref) = stash_price.as_ref() {
+                        stash_price_ref.clone()
+                    } else {
+                        continue;
+                    };
 
                     items.push(db::Item {
                         timestamp: Utc::now(),
@@ -159,8 +175,28 @@ impl PublicStashWorker {
                         passives,
                         tier,
                         influences,
+                        note: item
+                            .note
+                            .clone()
+                            .or(stash.stash.clone())
+                            .unwrap_or_default(),
+                        price_quantity: final_price.quantity,
+                        price_currency: final_price.currency.to_string(),
                     });
                 }
+            }
+
+            let end_time = std::time::Instant::now();
+
+            if !items.is_empty() {
+                debug!(
+                    "Processed {} items in {} ({}, {}/item)",
+                    items.len().human_count_bare(),
+                    (end_time - start_time).human_duration(),
+                    (items.len() as f64 / (end_time - start_time).as_secs_f64())
+                        .human_throughput("items"),
+                    ((end_time - start_time).as_secs_f64() / items.len() as f64).human_duration()
+                );
             }
 
             if let Err(e) = db.insert_items(items).await {
@@ -326,4 +362,40 @@ fn count_links(item: &crate::poe::types::Item) -> u8 {
     }
 
     max_link_group
+}
+
+#[derive(Clone)]
+struct ListingPrice {
+    quantity: f32,
+    currency: ListingCurrency,
+}
+
+fn extract_price(note: Option<&String>) -> Option<ListingPrice> {
+    let note = note?;
+
+    // The parser is defined as a sequence of smaller parsers using a tuple.
+    // This is an idiomatic way to define a sequence in `winnow`.
+    // 1. Prefix: `~price` or `~b/o`
+    // 2. Whitespace: one or more space characters.
+    // 3. Amount: a decimal unsigned 32-bit integer.
+    // 4. Whitespace: one or more space characters.
+    // 5. Currency Name: a string of alphanumeric characters and hyphens.
+    let mut parser = (
+        alt(("~price", "~b/o")),
+        multispace1::<_, winnow::error::InputError<_>>,
+        winnow::ascii::float::<_, f32, winnow::error::InputError<_>>,
+        multispace1::<_, winnow::error::InputError<_>>,
+        take_while(1.., |c: char| c.is_alphanumeric() || c == '-'),
+    );
+
+    let (_, _, amount, _, currency_str) = parser.parse_next(&mut note.as_str()).ok()?;
+
+    let currency = ListingCurrency::from_str(currency_str).ok()?;
+
+    // debug!("Extracted price: {} => {} {}", note, amount, currency);
+
+    Some(ListingPrice {
+        quantity: amount,
+        currency,
+    })
 }

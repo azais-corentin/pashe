@@ -15,7 +15,10 @@ CREATE TABLE items
     `quality` UInt8,
     `passives` UInt8,
     `tier` UInt8,
-    `influences` Array(LowCardinality(String))
+    `influences` Array(LowCardinality(String)),
+    `note` String,
+    `price_quantity` Float32,
+    `price_currency` LowCardinality(String),
 )
 ENGINE = MergeTree
 PARTITION BY (league, toYYYYMMDD(timestamp))

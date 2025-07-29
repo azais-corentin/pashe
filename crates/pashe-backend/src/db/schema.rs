@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use clickhouse::Row;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use strum_macros::{Display, EnumString};
 
 /// Schema migration tracking
 #[derive(Debug, Row, Serialize, Deserialize)]
@@ -9,6 +10,35 @@ pub struct SchemaMigration {
     pub version: String,
     #[serde(with = "clickhouse::serde::chrono::datetime")]
     pub applied_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize, Display, EnumString, Clone)]
+pub enum ListingCurrency {
+    #[strum(serialize = "alch")]
+    AlchemyOrb,
+    #[strum(serialize = "alt")]
+    AlterationOrb,
+    #[strum(serialize = "annul")]
+    AnnulmentOrb,
+    #[strum(serialize = "chance")]
+    ChanceOrb,
+    #[strum(serialize = "chaos")]
+    ChaosOrb,
+    #[strum(serialize = "divine")]
+    DivineOrb,
+    #[strum(serialize = "exalted")]
+    ExaltedOrb,
+    #[strum(serialize = "fusing")]
+    FusingOrb,
+    #[strum(serialize = "mirror")]
+    MirrorOfKalandra,
+    #[strum(serialize = "regal")]
+    RegalOrb,
+    #[strum(serialize = "scour")]
+    ScouringOrb,
+    #[default]
+    #[strum(serialize = "unknown")]
+    Unknown,
 }
 
 /// Individual item in a stash
@@ -35,6 +65,10 @@ pub struct Item {
     pub tier: u8,
     /// Base type influences
     pub influences: Vec<String>,
+    /// Pricing
+    pub note: String,
+    pub price_quantity: f32,
+    pub price_currency: String,
 }
 
 /// Statistics event tracking
@@ -52,12 +86,12 @@ pub struct StatisticsEvent {
 #[derive(Debug, Serialize_repr, Deserialize_repr)]
 #[repr(i8)]
 pub enum PeriodType {
-    Total = 0,
-    Year = 1,
-    Month = 2,
-    Day = 3,
-    Hour = 4,
-    Minute = 5,
+    Total,
+    Year,
+    Month,
+    Day,
+    Hour,
+    Minute,
 }
 
 /// Aggregated statistics per time period
