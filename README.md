@@ -87,6 +87,7 @@ This repository contains the source code for Pashe, a tool for analyzing the Pat
 [![Rust][Rust.js]][Rust-url]
 [![Svelte][Svelte.js]][Svelte-url]
 [![Tauri][Tauri.js]][Tauri-url]
+[![Docker][Docker.js]][Docker-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -178,3 +179,5 @@ Project Link: [https://github.com/azais-corentin/pashe](https://github.com/azais
 [Svelte-url]: https://svelte.dev/
 [Tauri.js]: https://img.shields.io/badge/Tauri-24C8DB?style=for-the-badge&logo=tauri&logoColor=white
 [Tauri-url]: https://tauri.app/
+[Docker.js]: https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white
+[Docker-url]: https://www.docker.com/
