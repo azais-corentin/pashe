@@ -64,12 +64,9 @@
         <li><a href="#installation">Installation</a></li>
       </ul>
     </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
   </ol>
 </details>
 
@@ -79,17 +76,17 @@
 
 This repository contains the source code for Pashe, a tool for analyzing the Path of Exile economy. It is composed of three main parts:
 
-*   `pashe-frontend`: A desktop application built with Svelte and Tauri. This is the user-facing part of the application.
-*   `pashe-backend`: A server application written in Rust. It fetches data from the official Path of Exile public stash tab API to estimate item prices, much like poe.ninja. The goal is to perform statistical analysis on the game's economy and find interesting trends.
-*   `db`: A small utility tool for database management.
+- `pashe-frontend`: A desktop application built with Svelte and Tauri. This is the user-facing part of the application.
+- `pashe-backend`: A server application written in Rust. It fetches data from the official Path of Exile public stash tab API to estimate item prices, much like poe.ninja. The goal is to perform statistical analysis on the game's economy and find interesting trends.
+- `db`: A small utility tool for database management.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ### Built With
 
-- [![Rust][Rust.js]][Rust-url]
-- [![Svelte][Svelte.js]][Svelte-url]
-- [![Tauri][Tauri.js]][Tauri-url]
+[![Rust][Rust.js]][Rust-url]
+[![Svelte][Svelte.js]][Svelte-url]
+[![Tauri][Tauri.js]][Tauri-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -101,10 +98,12 @@ To get a local copy up and running follow these simple example steps.
 
 ### Prerequisites
 
-- cargo
-  ```sh
-  cargo --version
-  ```
+It is recommended to use the provided devcontainer for development, which comes with all the necessary dependencies for both backend and frontend development.
+
+If you choose not to use the devcontainer, you will need to install the following dependencies manually:
+
+- Rust and Cargo
+- bun
 
 ### Installation
 
@@ -115,11 +114,6 @@ To get a local copy up and running follow these simple example steps.
 2. Build the project
    ```sh
    cargo build --release
-   ```
-3. Change git remote url to avoid accidental pushes to base project
-   ```sh
-   git remote set-url origin azais-corentin/pashe
-   git remote -v # confirm the changes
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -151,7 +145,7 @@ Don't forget to give the project a star! Thanks again!
 
 ## License
 
-Distributed under the GNU GPLv3 License. See `LICENSE` for more information.
+Distributed under the GNU GPLv3 License. See [`LICENSE`](https://github.com/azais-corentin/pashe/blob/main/LICENSE) for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
