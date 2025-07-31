@@ -164,7 +164,7 @@ async fn main() -> Result<()> {
                 let stash_changes_tx_clone = stash_changes_tx.clone();
                 let stash_crawler_clone = Arc::clone(&stash_crawler);
 
-                // Spawn a new task for each stash crawler
+                // Spawn a new task for each next change ID
                 tokio::spawn(async move {
                     if let Err(e) = stash_crawler_clone.fetch_stash(
                         client_clone,
