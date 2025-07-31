@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  PASHE_BACKEND_IMAGE_NAME: ${{ github.repository }}/pashe-backend
+  IMAGE_NAME: ${{ github.repository }}/pashe-backend
 
 jobs:
   build-and-publish:
