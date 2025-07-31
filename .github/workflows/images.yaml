@@ -1,4 +1,4 @@
-name: Docker Publish
+name: Docker images
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-publish:
@@ -35,7 +34,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/pashe-backend
           tags: |
             type=ref,event=branch
             type=ref,event=pr
