@@ -36,11 +36,7 @@ fn setup_tracing() {
     let filter = tracing_subscriber::filter::Targets::new()
         .with_target("pashe_backend", tracing::level_filters::LevelFilter::TRACE);
     let layer1 = fmt::Layer::default();
-    let layer2 = tracing_tracy::TracyLayer::default();
-    let subscriber = tracing_subscriber::registry()
-        .with(layer1)
-        .with(layer2)
-        .with(filter);
+    let subscriber = tracing_subscriber::registry().with(layer1).with(filter);
 
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 }

@@ -1,12 +1,13 @@
-# There are 5 stages in this image:
+# There are 6 stages in this image:
 # Stage 1: development      – Base development container with essential tools for development.
 # Stage 2: chef             – Base chef container for dependency caching.
 # Stage 3: planner          – Prepares dependency recipe for caching.
-# Stage 4: builder          – Builds the Rust application.
-# Stage 5: runtime          – Final container that includes the built application.
+# Stage 4: cacher           – Caches dependencies for faster builds.
+# Stage 5: builder          – Builds the Rust application.
+# Stage 6: runtime          – Final container that includes the built application.
 
-ARG DEBIAN_FRONTEND noninteractive
-ARG MOLD_VERSION=2.40.2
+ARG DEBIAN_FRONTEND=noninteractive
+ARG MOLD_VERSION=2.40.3
 
 FROM mcr.microsoft.com/devcontainers/base:debian AS development
 
@@ -26,7 +27,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install mold
 RUN --mount=type=bind,source=.devcontainer/scripts,target=/tmp/scripts \
-	/tmp/scripts/install-mold.sh ${MOLD_VERSION}
+    /tmp/scripts/install-mold.sh ${MOLD_VERSION}
 
 USER vscode
 
@@ -39,29 +40,43 @@ RUN ~/.local/bin/mise use -g bun node rust
 RUN ~/.local/bin/mise exec bun -- bun install -g @google/gemini-cli && \
     echo 'PATH=$PATH:~/.bun/bin/' >> ~/.bashrc
 
-FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
+FROM clux/muslrust:stable AS chef
 
-WORKDIR /app
+ARG MOLD_VERSION
+
+# Install dependencies needed for mold installation
+RUN apt-get update && apt-get install -y \
+    wget tar && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install mold
+COPY .devcontainer/scripts/install-mold.sh /tmp/install-mold.sh
+RUN chmod +x /tmp/install-mold.sh && \
+    /tmp/install-mold.sh ${MOLD_VERSION} && \
+    rm /tmp/install-mold.sh
+
+RUN cargo install cargo-chef
 
 FROM chef AS planner
-
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare --bin pashe-backend --recipe-path recipe.json
 
-FROM chef AS builder 
+FROM chef AS cacher
+COPY --from=planner /volume/recipe.json recipe.json
+RUN cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
 
-COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json
+FROM chef AS builder
 COPY . .
-RUN cargo build --release --bin pashe-backend
+COPY --from=cacher /volume/target target
+COPY --from=cacher /root/.cargo /root/.cargo
+RUN cargo build --bin pashe-backend --release --target x86_64-unknown-linux-musl
 
-FROM debian:bookworm-slim AS runtime
+FROM gcr.io/distroless/static:nonroot AS runtime
 
 LABEL  \
-    org.opencontainers.image.authors='haellsigh@gmail.com' \
-    org.opencontainers.image.source='https://github.com/azais-corentin/PoeIndexer' \
-    org.opencontainers.image.vendor='Azais Corentin'
+    org.opencontainers.image.authors='azaiscorentin@gmail.com' \
+    org.opencontainers.image.source='https://github.com/azais-corentin/pashe' \
+    org.opencontainers.image.vendor='Corentin AZAIS'
 
-WORKDIR /app
-COPY --from=builder /app/target/release/pashe-backend /usr/local/bin
-ENTRYPOINT ["/usr/local/bin/pashe-backend"]
+COPY --from=builder --chown=nonroot:nonroot /volume/target/x86_64-unknown-linux-musl/release/pashe-backend /app/pashe-backend
+ENTRYPOINT ["/app/pashe-backend"]

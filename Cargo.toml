@@ -9,6 +9,10 @@ resolver = "3"
 [profile.dev.package."pashe-frontend"]
 debug = 0
 
+[profile.release]
+strip = true
+lto = true
+
 [workspace.package]
 rust-version = "1.88.0"
 edition = "2024"

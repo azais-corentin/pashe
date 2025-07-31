@@ -17,11 +17,13 @@
                 "fill-labs.dependi",
                 "tamasfe.even-better-toml",
                 "svelte.svelte-vscode",
-                "esbenp.prettier-vscode"
+                "esbenp.prettier-vscode",
+                "Gxl.git-graph-3"
             ]
         }
     },
     "forwardPorts": [
-        8086, 8123
+        8086,
+        8123
     ]
 }

@@ -1,0 +1,9 @@
+.devcontainer/
+!.devcontainer/scripts/
+!.devcontainer/scripts/install-mold.sh
+.env/
+.git/
+.github/
+.vscode/
+migrations/
+target/
