@@ -7,6 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  PASHE_BACKEND_IMAGE_NAME: ${{ github.repository }}/pashe-backend
 
 jobs:
   build-and-publish:
@@ -34,7 +35,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/pashe-backend
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
