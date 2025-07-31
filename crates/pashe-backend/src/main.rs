@@ -98,9 +98,7 @@ async fn main() -> Result<()> {
     headers.insert(ACCEPT_ENCODING, HeaderValue::from_static("gzip"));
 
     debug!("Fetching initial next_change_id from poe.ninja");
-    let ninja = http_client
-        .get("https://poe.ninja/api/data/getstats")
-        .send()
+    let ninja = reqwest::get("https://poe.ninja/api/data/getstats")
         .await?
         .json::<serde_json::Value>()
         .await?;
