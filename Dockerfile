@@ -61,15 +61,11 @@ FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --bin pashe-backend --recipe-path recipe.json
 
-FROM chef AS cacher
+FROM chef AS builder
 COPY --from=planner /volume/recipe.json recipe.json
 RUN cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
-
-FROM chef AS builder
 COPY . .
-COPY --from=cacher /volume/target target
-COPY --from=cacher /root/.cargo /root/.cargo
-RUN cargo build --bin pashe-backend --release --target x86_64-unknown-linux-musl
+RUN cargo build --release --target x86_64-unknown-linux-musl --bin pashe-backend
 
 FROM gcr.io/distroless/static:nonroot AS runtime
 
