@@ -1,6 +1,6 @@
 services:
   pashe-backend:
-    image: ghcr.io/azais-corentin/pashe/pashe-backend:sha-39a87d8
+    image: ghcr.io/azais-corentin/pashe/pashe-backend:main
     container_name: pashe-backend
     restart: unless-stopped
     env_file: .env
