@@ -7,13 +7,12 @@ use http::header::ACCEPT_ENCODING;
 use oauth2::reqwest;
 use reqwest::header::{ACCEPT, AUTHORIZATION, HeaderValue, USER_AGENT};
 use std::{env, sync::Arc};
-use tokio::sync::mpsc;
+use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, layer::SubscriberExt};
 
 use crate::poe::rate_limit::RateLimitMiddleware;
-use tokio::signal;
 
 async fn get_access_token(http_client: &reqwest::Client) -> Result<String> {
     match cache::get_cached_access_token().await {
@@ -45,11 +44,20 @@ fn setup_shutdown_handler() -> CancellationToken {
     let shutdown_token = CancellationToken::new();
     let cloned_shutdown_token = shutdown_token.clone();
 
+    let mut sigterm = signal::unix::signal(signal::unix::SignalKind::terminate())
+        .expect("Failed to listen for SIGTERM");
+    let mut sigint = signal::unix::signal(signal::unix::SignalKind::interrupt())
+        .expect("Failed to listen for SIGINT");
+
     tokio::spawn(async move {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to listen for shutdown signal");
-        info!("Shutdown signal received, shutting down gracefully...");
+        tokio::select! {
+            _ = sigterm.recv() => {
+                info!("Shutdown signal received (SIGTERM), shutting down gracefully...");
+            }
+            _ = sigint.recv() => {
+                info!("Shutdown signal received (SIGINT), shutting down gracefully...");
+            }
+        }
         shutdown_token.cancel();
     });
 
