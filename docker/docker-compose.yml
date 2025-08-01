@@ -1,0 +1,42 @@
+services:
+  pashe-backend:
+    image: ghcr.io/azais-corentin/pashe/pashe-backend:sha-39a87d8
+    container_name: pashe-backend
+    restart: unless-stopped
+    env_file: .env
+
+  pashe-cache:
+    image: redis
+    container_name: pashe-cache
+    restart: unless-stopped
+    volumes:
+      - pashe-cache:/data
+
+  pashe-db:
+    image: clickhouse/clickhouse-server
+    container_name: pashe-db
+    user: 1000:1000
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    cap_add:
+      - SYS_NICE
+      - IPC_LOCK
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: pashe
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      CLICKHOUSE_USER: pashe
+      CLICKHOUSE_PASSWORD: pashe
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - pashe-db:/var/lib/clickhouse
+
+volumes:
+  pashe-cache:
+  pashe-db:
