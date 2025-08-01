@@ -40,7 +40,8 @@ RUN ~/.local/bin/mise use -g bun node rust
 RUN ~/.local/bin/mise exec bun -- bun install -g @google/gemini-cli && \
     echo 'PATH=$PATH:~/.bun/bin/' >> ~/.bashrc
 
-FROM clux/muslrust:stable AS chef
+# Caching inspired by https://depot.dev/docs/container-builds/how-to-guides/optimal-dockerfiles/rust-dockerfile
+FROM clux/muslrust:stable AS base
 
 ARG MOLD_VERSION
 
@@ -49,23 +50,33 @@ RUN apt-get update && apt-get install -y \
     wget tar && \
     rm -rf /var/lib/apt/lists/*
 
-# Install mold
 COPY .devcontainer/scripts/install-mold.sh /tmp/install-mold.sh
 RUN chmod +x /tmp/install-mold.sh && \
     /tmp/install-mold.sh ${MOLD_VERSION} && \
     rm /tmp/install-mold.sh
 
-RUN cargo install cargo-chef
+    
+RUN curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+RUN cargo binstall cargo-chef sccache
+ENV RUSTC_WRAPPER=sccache SCCACHE_DIR=/sccache
 
-FROM chef AS planner
+FROM base AS planner
+WORKDIR /app
 COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+RUN cargo chef prepare
 
-FROM chef AS builder
-COPY --from=planner /volume/recipe.json recipe.json
-RUN cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
+FROM base AS builder
+WORKDIR /app
+COPY --from=planner /app/recipe.json recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
+    cargo chef cook --release --target x86_64-unknown-linux-musl
 COPY . .
-RUN cargo build --release --target x86_64-unknown-linux-musl --bin db --bin pashe-backend
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=$SCCACHE_DIR,sharing=locked \
+    cargo build --release --target x86_64-unknown-linux-musl
 
 FROM gcr.io/distroless/static:nonroot AS runtime
 
@@ -74,6 +85,7 @@ LABEL  \
     org.opencontainers.image.source='https://github.com/azais-corentin/pashe' \
     org.opencontainers.image.vendor='Corentin AZAIS'
 
-COPY --from=builder --chown=nonroot:nonroot /volume/target/x86_64-unknown-linux-musl/release/pashe-backend /app/pashe-backend
-COPY --from=builder --chown=nonroot:nonroot /volume/target/x86_64-unknown-linux-musl/release/db /app/db
-ENTRYPOINT ["/app/pashe-backend"]
+COPY --from=builder --chown=nonroot:nonroot /app/target/x86_64-unknown-linux-musl/release/pashe-backend /app/pashe-backend
+COPY --from=builder --chown=nonroot:nonroot /app/target/x86_64-unknown-linux-musl/release/db /app/db
+
+CMD ["/app/pashe-backend"]
