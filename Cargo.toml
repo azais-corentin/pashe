@@ -4,6 +4,7 @@ members = [
     "crates/pashe-backend",
     "crates/pashe-frontend/src-tauri",
 ]
+default-members = ["crates/db", "crates/pashe-backend"]
 resolver = "3"
 
 [profile.dev.package."pashe-frontend"]
