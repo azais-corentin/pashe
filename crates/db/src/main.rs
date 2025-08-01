@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     match &cli.command {
         Commands::Migration(migration) => match &migration.command {
             MigrationCommands::Create { name } => create(&cli, name).await?,
-            MigrationCommands::To { version } => to(&cli, *version).await?,
+            MigrationCommands::To { version } => to(&cli, version).await?,
         },
         Commands::Reset { .. } => reset(&cli).await?,
         Commands::Version => {

@@ -49,6 +49,6 @@ pub enum MigrationCommands {
     /// Migrates to the specified version
     To {
         /// The version to migrate to
-        version: u32,
+        version: String,
     },
 }

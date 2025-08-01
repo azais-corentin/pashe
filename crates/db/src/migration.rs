@@ -97,7 +97,7 @@ pub async fn create(cli: &Cli, name: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
+pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
     let directory = std::env::current_dir()?.join(&cli.directory);
     let versions = get_available_migration_versions(&directory)?;
 
@@ -125,6 +125,14 @@ pub async fn to(cli: &Cli, target_version: u32) -> Result<()> {
             0
         }
         Err(e) => return Err(e.into()),
+    };
+
+    let target_version = if target_version == "latest" {
+        versions.last().map_or(0, |v| v.version)
+    } else {
+        target_version
+            .parse::<u32>()
+            .with_context(|| format!("Invalid target version: {target_version}"))?
     };
 
     if current_version == target_version {
