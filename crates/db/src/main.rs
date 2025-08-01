@@ -8,7 +8,9 @@ use tracing_subscriber::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenvy::dotenv()?;
+    if let Err(_) = dotenvy::dotenv() {
+        println!("No .env file found");
+    }
 
     let filter = tracing_subscriber::filter::Targets::new()
         .with_default(tracing::Level::TRACE)
