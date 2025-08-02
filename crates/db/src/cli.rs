@@ -51,4 +51,6 @@ pub enum MigrationCommands {
         /// The version to migrate to
         version: String,
     },
+    /// Test all migrations
+    Test,
 }

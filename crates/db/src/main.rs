@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use db::{
     cli::{Cli, Commands, MigrationCommands},
-    create, reset, to, version,
+    create, reset, test, to, version,
 };
 use tracing_subscriber::prelude::*;
 
@@ -30,6 +30,9 @@ async fn main() -> Result<()> {
             MigrationCommands::Create { name } => create(cli.directory.as_str(), name).await?,
             MigrationCommands::To { version } => {
                 to(&client, cli.directory.as_str(), version).await?
+            }
+            MigrationCommands::Test => {
+                test(&client, cli.directory.as_str()).await?;
             }
         },
         Commands::Reset { force } => reset(&client, *force).await?,

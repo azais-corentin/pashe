@@ -55,6 +55,32 @@ fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<Migration
     Ok(versions)
 }
 
+pub async fn version(client: &clickhouse::Client) -> Result<u32, DbError> {
+    // Ensure the schema_migrations table exists
+    client
+        .query("CREATE TABLE IF NOT EXISTS schema_migrations (version String, applied_at DateTime DEFAULT now()) ENGINE = MergeTree ORDER BY version")
+        .execute()
+        .await?;
+
+    let result = match client
+        .query("SELECT version FROM schema_migrations")
+        .fetch_one::<String>()
+        .await
+    {
+        Ok(version) => version,
+        Err(clickhouse::error::Error::RowNotFound) => {
+            return Err(DbError::UnknownVersion);
+        }
+        Err(e) => return Err(DbError::Clickhouse(e)),
+    };
+
+    let version = result.parse()?;
+
+    info!("Current database version: {version}");
+
+    Ok(version)
+}
+
 pub async fn create(directory: &str, name: &str) -> Result<()> {
     // Create migration directory if it doesn't exist
     let directory = std::env::current_dir()?.join(directory);
@@ -214,28 +240,42 @@ pub async fn to(client: &clickhouse::Client, directory: &str, target_version: &s
     Ok(())
 }
 
-pub async fn version(client: &clickhouse::Client) -> Result<u32, DbError> {
-    // Ensure the schema_migrations table exists
-    client
-        .query("CREATE TABLE IF NOT EXISTS schema_migrations (version String, applied_at DateTime DEFAULT now()) ENGINE = MergeTree ORDER BY version")
-        .execute()
-        .await?;
+pub async fn test(client: &clickhouse::Client, directory: &str) -> Result<()> {
+    let directory_path = std::env::current_dir()?.join(directory);
+    let versions = get_available_migration_versions(&directory_path)?;
 
-    let result = match client
-        .query("SELECT version FROM schema_migrations")
-        .fetch_one::<String>()
-        .await
-    {
-        Ok(version) => version,
-        Err(clickhouse::error::Error::RowNotFound) => {
-            return Err(DbError::UnknownVersion);
+    if versions.is_empty() {
+        info!(
+            "No migrations found in the directory: {}",
+            directory_path.display()
+        );
+        return Ok(());
+    }
+
+    // Save original version
+    let original_version = match version(client).await {
+        Ok(v) => v,
+        Err(DbError::UnknownVersion) => {
+            info!("Unknown database version, interpreting as version 0");
+            0
         }
-        Err(e) => return Err(DbError::Clickhouse(e)),
+        Err(e) => return Err(e.into()),
     };
 
-    let version = result.parse()?;
+    info!("Step 1: Migrating down to version 0");
+    to(client, directory, "0").await?;
 
-    info!("Current database version: {version}");
+    let max_version = versions.last().map_or(0, |v| v.version);
+    info!("Step 2: Migrating up to version {}", max_version);
+    to(client, directory, &max_version.to_string()).await?;
 
-    Ok(version)
+    info!(
+        "Step 3: Migrating down to original version {}",
+        original_version
+    );
+    to(client, directory, &original_version.to_string()).await?;
+
+    info!("Migration test completed successfully");
+
+    Ok(())
 }
