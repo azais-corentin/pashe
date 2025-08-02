@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use tracing::{Instrument, debug, error};
+use tracing::{Instrument, debug, error, info};
 use winnow::prelude::*;
 use winnow::{ascii::multispace1, combinator::alt, token::take_while};
 
@@ -44,6 +44,14 @@ impl PublicStashWorker {
         if response.status() != reqwest::StatusCode::OK {
             let status = response.status();
             error!("Failed to fetch public stashes: HTTP {}", status);
+
+            // Retry
+            info!("Retrying with change ID: {}", change_id);
+            if next_change_id_tx.send(change_id).is_err() {
+                debug!("Failed to send next change ID, receiver dropped");
+                return Ok(());
+            }
+
             return Err(anyhow::anyhow!(
                 "Failed to fetch public stashes: HTTP {}",
                 status
