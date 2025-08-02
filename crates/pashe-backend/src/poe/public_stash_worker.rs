@@ -169,8 +169,6 @@ impl PublicStashWorker {
                     items.push(db::Item {
                         timestamp: Utc::now(),
                         league,
-                        stash_name: stash.stash.clone().unwrap_or_default(),
-                        account_name: stash.account_name.clone().unwrap_or_default(),
                         name: item.name.clone(),
                         type_line: item.type_line.clone(),
                         base: item.base_type.clone(),

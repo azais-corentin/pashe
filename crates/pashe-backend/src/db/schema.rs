@@ -47,8 +47,6 @@ pub struct Item {
     #[serde(with = "clickhouse::serde::chrono::datetime")]
     pub timestamp: DateTime<Utc>,
     pub league: String,
-    pub stash_name: String,
-    pub account_name: String,
     pub name: String,
     pub type_line: String,
     pub base: String,
