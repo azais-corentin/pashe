@@ -66,7 +66,7 @@ fn setup_shutdown_handler() -> CancellationToken {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if let Err(_) = dotenvy::dotenv() {
+    if dotenvy::dotenv().is_err() {
         println!("No .env file found");
     }
     const PACKAGE_VERSION: &str = env!("CARGO_PKG_VERSION");
