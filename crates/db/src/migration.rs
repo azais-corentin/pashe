@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 use std::path::PathBuf;
 use tracing::{debug, info};
 
-use crate::{cli::Cli, db::get_db, error::DbError};
+use crate::error::DbError;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 struct MigrationInfo {
@@ -55,9 +55,9 @@ fn get_available_migration_versions(directory: &PathBuf) -> Result<Vec<Migration
     Ok(versions)
 }
 
-pub async fn create(cli: &Cli, name: &str) -> Result<()> {
+pub async fn create(directory: &str, name: &str) -> Result<()> {
     // Create migration directory if it doesn't exist
-    let directory = std::env::current_dir()?.join(&cli.directory);
+    let directory = std::env::current_dir()?.join(directory);
     std::fs::create_dir_all(&directory).with_context(|| {
         format!(
             "Failed to create migration directory: {}",
@@ -97,8 +97,8 @@ pub async fn create(cli: &Cli, name: &str) -> Result<()> {
     Ok(())
 }
 
-pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
-    let directory = std::env::current_dir()?.join(&cli.directory);
+pub async fn to(client: &clickhouse::Client, directory: &str, target_version: &str) -> Result<()> {
+    let directory = std::env::current_dir()?.join(directory);
     let versions = get_available_migration_versions(&directory)?;
 
     if versions.is_empty() {
@@ -118,7 +118,7 @@ pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
             .join(", ")
     );
 
-    let current_version = match crate::version().await {
+    let current_version = match crate::version(client).await {
         Ok(v) => v,
         Err(DbError::UnknownVersion) => {
             info!("Unknown database version, interpreting as version 0");
@@ -139,8 +139,6 @@ pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
         info!("Database is already at version {target_version}");
         return Ok(());
     }
-
-    let db = get_db();
 
     let (steps, direction) = if current_version > target_version {
         info!("Downgrading database from version {current_version} to {target_version}");
@@ -184,7 +182,8 @@ pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
         let queries = contents.split(';').filter(|query| !query.trim().is_empty());
 
         for query in queries {
-            db.query(query)
+            client
+                .query(query)
                 .execute()
                 .await
                 .with_context(|| format!("Failed to execute query: {query}"))?;
@@ -198,12 +197,13 @@ pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
 
     // Update the schema_migrations table
     // Delete existing version and insert the new one to ensure only one row exists
-    db.query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
+    client
+        .query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
         .execute()
         .await
         .with_context(|| "Failed to delete old version from schema_migrations")?;
 
-    db.query("INSERT INTO schema_migrations (version) SETTINGS async_insert=1, wait_for_async_insert=1 VALUES (?)")
+    client.query("INSERT INTO schema_migrations (version) SETTINGS async_insert=1, wait_for_async_insert=1 VALUES (?)")
         .bind(latest_version)
         .execute()
         .await
@@ -214,9 +214,7 @@ pub async fn to(cli: &Cli, target_version: &String) -> Result<()> {
     Ok(())
 }
 
-pub async fn version() -> Result<u32, DbError> {
-    let client = get_db();
-
+pub async fn version(client: &clickhouse::Client) -> Result<u32, DbError> {
     // Ensure the schema_migrations table exists
     client
         .query("CREATE TABLE IF NOT EXISTS schema_migrations (version String, applied_at DateTime DEFAULT now()) ENGINE = MergeTree ORDER BY version")

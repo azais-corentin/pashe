@@ -1,16 +1,46 @@
 use anyhow::Result;
 use tracing::info;
 
-use crate::cli::{Cli, Commands};
+pub struct DatabaseConfig {
+    pub url: String,
+    pub user: String,
+    pub password: String,
+    pub database: String,
+}
 
-pub async fn reset(cli: &Cli) -> Result<()> {
-    let force = if let Commands::Reset { force } = cli.command {
-        force
-    } else {
-        false
-    };
+impl DatabaseConfig {
+    pub fn from_env() -> Result<Self> {
+        Ok(Self {
+            url: std::env::var("CLICKHOUSE_URL")
+                .expect("Missing the CLICKHOUSE_URL environment variable."),
+            user: std::env::var("CLICKHOUSE_USER")
+                .expect("Missing the CLICKHOUSE_USER environment variable."),
+            password: std::env::var("CLICKHOUSE_PASSWORD")
+                .expect("Missing the CLICKHOUSE_PASSWORD environment variable."),
+            database: std::env::var("CLICKHOUSE_DATABASE")
+                .expect("Missing the CLICKHOUSE_DATABASE environment variable."),
+        })
+    }
 
-    let client = get_db();
+    pub fn new(url: String, user: String, password: String, database: String) -> Self {
+        Self {
+            url,
+            user,
+            password,
+            database,
+        }
+    }
+
+    pub fn create_client(&self) -> clickhouse::Client {
+        clickhouse::Client::default()
+            .with_url(&self.url)
+            .with_user(&self.user)
+            .with_password(&self.password)
+            .with_database(&self.database)
+    }
+}
+
+pub async fn reset(client: &clickhouse::Client, force: bool) -> Result<()> {
     let result = client.query("SHOW TABLES").fetch_all::<String>().await?;
 
     if result.is_empty() {
@@ -53,21 +83,4 @@ pub async fn reset(cli: &Cli) -> Result<()> {
     }
 
     Ok(())
-}
-
-pub fn get_db() -> clickhouse::Client {
-    let clickhouse_url =
-        std::env::var("CLICKHOUSE_URL").expect("Missing the CLICKHOUSE_URL environment variable.");
-    let clickhouse_user = std::env::var("CLICKHOUSE_USER")
-        .expect("Missing the CLICKHOUSE_USER environment variable.");
-    let clickhouse_password = std::env::var("CLICKHOUSE_PASSWORD")
-        .expect("Missing the CLICKHOUSE_PASSWORD environment variable.");
-    let clickhouse_database = std::env::var("CLICKHOUSE_DATABASE")
-        .expect("Missing the CLICKHOUSE_DATABASE environment variable.");
-
-    clickhouse::Client::default()
-        .with_url(clickhouse_url)
-        .with_user(clickhouse_user)
-        .with_password(clickhouse_password)
-        .with_database(clickhouse_database)
 }

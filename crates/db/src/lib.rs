@@ -4,6 +4,6 @@ mod error;
 mod migration;
 
 pub use cli::{Cli, Commands, Migration, MigrationCommands};
-pub use db::reset;
+pub use db::{DatabaseConfig, reset};
 pub use error::DbError;
 pub use migration::{create, to, version};

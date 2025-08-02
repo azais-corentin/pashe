@@ -8,7 +8,7 @@ use tracing_subscriber::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if let Err(_) = dotenvy::dotenv() {
+    if dotenvy::dotenv().is_err() {
         println!("No .env file found");
     }
 
@@ -23,14 +23,18 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    let client = db::DatabaseConfig::from_env()?.create_client();
+
     match &cli.command {
         Commands::Migration(migration) => match &migration.command {
-            MigrationCommands::Create { name } => create(&cli, name).await?,
-            MigrationCommands::To { version } => to(&cli, version).await?,
+            MigrationCommands::Create { name } => create(cli.directory.as_str(), name).await?,
+            MigrationCommands::To { version } => {
+                to(&client, cli.directory.as_str(), version).await?
+            }
         },
-        Commands::Reset { .. } => reset(&cli).await?,
+        Commands::Reset { force } => reset(&client, *force).await?,
         Commands::Version => {
-            let _ = version().await?;
+            let _ = version(&client).await?;
         }
     }
 
