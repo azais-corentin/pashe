@@ -14,6 +14,10 @@ use tracing_subscriber::{fmt, layer::SubscriberExt};
 
 use crate::poe::rate_limit::RateLimitMiddleware;
 
+// Use jemalloc as the global allocator for better performance
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 async fn get_access_token(http_client: &reqwest::Client) -> Result<String> {
     match cache::get_cached_access_token().await {
         Ok(token) => {
