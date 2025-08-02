@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
         .build()?;
 
     let http_client = reqwest_middleware::ClientBuilder::new(http_client)
-        .with(RateLimitMiddleware::default())
+        .with(RateLimitMiddleware::new(shutdown_token.clone()))
         .build();
 
     info!("Starting crawler at next_change_id: {}", next_change_id);

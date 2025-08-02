@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::Instant;
+use tokio_util::sync::CancellationToken;
 
 // Represents the state of a single rate limit rule
 #[derive(Debug, Clone)]
@@ -19,14 +20,22 @@ struct RuleState {
 pub struct RateLimitMiddleware {
     state: Arc<Mutex<HashMap<String, RuleState>>>,
     last_request_time: Arc<Mutex<Instant>>,
+    shutdown_token: CancellationToken,
+}
+
+impl RateLimitMiddleware {
+    pub fn new(shutdown_token: CancellationToken) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(HashMap::new())),
+            last_request_time: Arc::new(Mutex::new(Instant::now())),
+            shutdown_token,
+        }
+    }
 }
 
 impl Default for RateLimitMiddleware {
     fn default() -> Self {
-        Self {
-            state: Arc::new(Mutex::new(HashMap::new())),
-            last_request_time: Arc::new(Mutex::new(Instant::now())),
-        }
+        Self::new(CancellationToken::new())
     }
 }
 
@@ -65,7 +74,15 @@ impl Middleware for RateLimitMiddleware {
                 "Proactive rate limit: waiting for {}",
                 wait_duration.human_duration()
             );
-            tokio::time::sleep(wait_duration).await;
+            tokio::select! {
+                _ = tokio::time::sleep(wait_duration) => {},
+                _ = self.shutdown_token.cancelled() => {
+                    tracing::info!("Proactive rate limit sleep interrupted by shutdown");
+                    return Err(reqwest_middleware::Error::Middleware(anyhow::anyhow!(
+                        "Rate limit sleep interrupted by shutdown"
+                    )));
+                }
+            }
         }
 
         *self.last_request_time.lock().unwrap() = Instant::now();
@@ -95,7 +112,15 @@ impl Middleware for RateLimitMiddleware {
                             wait_duration.human_duration(),
                             retries
                         );
-                        tokio::time::sleep(wait_duration).await;
+                        tokio::select! {
+                            _ = tokio::time::sleep(wait_duration) => {},
+                            _ = self.shutdown_token.cancelled() => {
+                                tracing::info!("Reactive rate limit sleep interrupted by shutdown");
+                                return Err(reqwest_middleware::Error::Middleware(anyhow::anyhow!(
+                                    "Rate limit sleep interrupted by shutdown"
+                                )));
+                            }
+                        }
                         // Continue to the next iteration of the loop to retry
                         continue;
                     }
