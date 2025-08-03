@@ -87,5 +87,6 @@ LABEL  \
 
 COPY --from=builder --chown=nonroot:nonroot /app/target/x86_64-unknown-linux-musl/release/pashe-backend /app/pashe-backend
 COPY --from=builder --chown=nonroot:nonroot /app/target/x86_64-unknown-linux-musl/release/db /app/db
+COPY migrations /app/migrations
 
 CMD ["/app/pashe-backend"]
