@@ -1,28 +1,25 @@
 CREATE TABLE items
 (
-    `timestamp` DateTime DEFAULT now(),
+    `timestamp` DateTime('UTC') DEFAULT now() CODEC(Delta(4), ZSTD(1)),
     `league` LowCardinality(String),
-    `stash_name` String,
-    `account_name` String,
-    `name` LowCardinality(String),
-    `type_line` LowCardinality(String),
     `base` LowCardinality(String),
+    `name` LowCardinality(String),
     `links` UInt8,
     `ilvl` UInt8,
+    `frame_type` UInt8,
     `corrupted` Bool,
-    `stack_size` UInt32,
+    `stack_size` UInt16,
     `level` UInt8,
     `quality` UInt8,
     `passives` UInt8,
     `tier` UInt8,
     `influences` Array(LowCardinality(String)),
-    `note` String,
     `price_quantity` Float32,
     `price_currency` LowCardinality(String),
 )
 ENGINE = MergeTree
-PARTITION BY (league, toYYYYMMDD(timestamp))
-ORDER BY (league, base, links, ilvl, corrupted);
+PARTITION BY (league, toYYYYMM(timestamp))
+ORDER BY (league, frame_type, base, links, corrupted, price_quantity, ilvl);
 
 CREATE TABLE statistics_events
 (

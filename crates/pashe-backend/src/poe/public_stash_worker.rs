@@ -111,6 +111,41 @@ impl PublicStashWorker {
             .with_context(|| format!("Failed to convert decompressed data to UTF-8 from {url}"))?;
 
         let stash_changes = serde_json::from_str::<PublicStashTabs>(&text_body)
+            .map_err(|e| {
+                debug!("Failed to parse JSON from {url}. Error: {e}");
+
+                // Find the exact position where parsing failed
+                let line = e.line();
+                let column = e.column();
+
+                // Calculate byte offset from line/column
+                let mut byte_offset = 0;
+                let mut current_line = 1;
+                let mut current_column = 1;
+
+                for (i, ch) in text_body.char_indices() {
+                    if current_line == line && current_column == column {
+                        byte_offset = i;
+                        break;
+                    }
+                    if ch == '\n' {
+                        current_line += 1;
+                        current_column = 1;
+                    } else {
+                        current_column += 1;
+                    }
+                }
+
+                // Extract 100 characters before and after the error position
+                let start = byte_offset.saturating_sub(100);
+                let end = (byte_offset + 100).min(text_body.len());
+                let context = &text_body[start..end];
+
+                debug!("Parse error at line {line}, column {column}");
+                debug!("Context (100 chars before/after): {}", context);
+
+                e
+            })
             .with_context(|| format!("Failed to parse response body from {url}"))?;
 
         // Send the parsed stash data along with compressed byte count
@@ -140,19 +175,14 @@ impl PublicStashWorker {
             }
 
             let start_time = std::time::Instant::now();
+            let timestamp = Utc::now();
 
             let mut items = Vec::new();
             for stash in stash_changes.stashes.iter() {
                 let stash_price = extract_price(stash.stash.as_ref());
 
                 for item in stash.items.iter() {
-                    let league = match &item.league {
-                        Some(league) => league.clone(),
-                        None => {
-                            debug!("Skipping item without league: {:?}", item);
-                            continue;
-                        }
-                    };
+                    let league = item.league.clone();
                     let (level, quality) = extract_gem_properties(item);
                     let influences = extract_influences(item);
                     let (passives, tier) = extract_passives_and_tier(item);
@@ -166,26 +196,29 @@ impl PublicStashWorker {
                         continue;
                     };
 
+                    let is_unique = item.frame_type == 3;
+                    let name = if is_unique {
+                        item.name.clone()
+                    } else {
+                        String::new()
+                    };
+                    let links = count_links(item);
+
                     items.push(db::Item {
-                        timestamp: Utc::now(),
+                        timestamp,
                         league,
-                        name: item.name.clone(),
-                        type_line: item.type_line.clone(),
                         base: item.base_type.clone(),
-                        links: count_links(item),
+                        name,
+                        links,
                         ilvl: item.ilvl.max(0) as u8,
+                        frame_type: item.frame_type,
                         corrupted: item.corrupted.unwrap_or(false),
-                        stack_size: item.stack_size.unwrap_or(1).max(1) as u32,
+                        stack_size: item.stack_size.unwrap_or(1).max(1) as u16,
                         level,
                         quality,
                         passives,
                         tier,
                         influences,
-                        note: item
-                            .note
-                            .clone()
-                            .or(stash.stash.clone())
-                            .unwrap_or_default(),
                         price_quantity: final_price.quantity,
                         price_currency: final_price.currency.to_string(),
                     });
@@ -250,15 +283,33 @@ fn extract_gem_properties(item: &crate::poe::types::Item) -> (u8, u8) {
         for prop in properties {
             match prop.name.as_str() {
                 "Level" => {
-                    if let Some((value, _)) = prop.values.first() {
-                        level = value.parse().unwrap_or(0).min(255) as u8;
+                    if let Some(values_vec) = prop.values.first() {
+                        if let Some(value) = values_vec.first() {
+                            match value {
+                                crate::poe::types::Value::String(s) => {
+                                    level = s.parse().unwrap_or(0).min(255) as u8;
+                                }
+                                crate::poe::types::Value::Integer(i) => {
+                                    level = (*i).max(0).min(255) as u8;
+                                }
+                            }
+                        }
                     }
                 }
                 "Quality" => {
-                    if let Some((value, _)) = prop.values.first() {
-                        // Remove the % symbol if present
-                        let clean_value = value.trim_end_matches('%');
-                        quality = clean_value.parse().unwrap_or(0).min(255) as u8;
+                    if let Some(values_vec) = prop.values.first() {
+                        if let Some(value) = values_vec.first() {
+                            match value {
+                                crate::poe::types::Value::String(s) => {
+                                    // Remove the % symbol if present
+                                    let clean_value = s.trim_end_matches('%');
+                                    quality = clean_value.parse().unwrap_or(0).min(255) as u8;
+                                }
+                                crate::poe::types::Value::Integer(i) => {
+                                    quality = (*i).max(0).min(255) as u8;
+                                }
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -273,28 +324,27 @@ fn extract_gem_properties(item: &crate::poe::types::Item) -> (u8, u8) {
 fn extract_influences(item: &crate::poe::types::Item) -> Vec<String> {
     let mut influences = Vec::new();
 
-    // Check the influences field
-    if let Some(inf) = &item.influences {
-        if inf.elder.unwrap_or(false) {
-            influences.push("Elder".to_string());
-        }
-        if inf.shaper.unwrap_or(false) {
-            influences.push("Shaper".to_string());
-        }
-        if inf.searing.unwrap_or(false) {
-            influences.push("Searing".to_string());
-        }
-        if inf.tangled.unwrap_or(false) {
-            influences.push("Tangled".to_string());
-        }
-    }
+    let Some(inf) = &item.influences else {
+        return influences;
+    };
 
-    // Check legacy influence fields
-    if item.elder.unwrap_or(false) {
+    if inf.shaper.unwrap_or(false) {
+        influences.push("Shaper".to_string());
+    }
+    if inf.elder.unwrap_or(false) {
         influences.push("Elder".to_string());
     }
-    if item.shaper.unwrap_or(false) {
-        influences.push("Shaper".to_string());
+    if inf.hunter.unwrap_or(false) {
+        influences.push("Hunter".to_string());
+    }
+    if inf.crusader.unwrap_or(false) {
+        influences.push("Crusader".to_string());
+    }
+    if inf.redeemer.unwrap_or(false) {
+        influences.push("Redeemer".to_string());
+    }
+    if inf.warlord.unwrap_or(false) {
+        influences.push("Warlord".to_string());
     }
 
     influences
@@ -309,13 +359,31 @@ fn extract_passives_and_tier(item: &crate::poe::types::Item) -> (u8, u8) {
         for prop in properties {
             match prop.name.as_str() {
                 "Added Small Passive Skills" | "Added Passives" => {
-                    if let Some((value, _)) = prop.values.first() {
-                        passives = value.parse().unwrap_or(0).min(255) as u8;
+                    if let Some(values_vec) = prop.values.first() {
+                        if let Some(value) = values_vec.first() {
+                            match value {
+                                crate::poe::types::Value::String(s) => {
+                                    passives = s.parse().unwrap_or(0).min(255) as u8;
+                                }
+                                crate::poe::types::Value::Integer(i) => {
+                                    passives = (*i).max(0).min(255) as u8;
+                                }
+                            }
+                        }
                     }
                 }
                 "Map Tier" | "Tier" => {
-                    if let Some((value, _)) = prop.values.first() {
-                        tier = value.parse().unwrap_or(0).min(255) as u8;
+                    if let Some(values_vec) = prop.values.first() {
+                        if let Some(value) = values_vec.first() {
+                            match value {
+                                crate::poe::types::Value::String(s) => {
+                                    tier = s.parse().unwrap_or(0).min(255) as u8;
+                                }
+                                crate::poe::types::Value::Integer(i) => {
+                                    tier = (*i).max(0).min(255) as u8;
+                                }
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -379,26 +447,26 @@ struct ListingPrice {
 fn extract_price(note: Option<&String>) -> Option<ListingPrice> {
     let note = note?;
 
+    type InputError<T> = winnow::error::InputError<T>;
+
     // The parser is defined as a sequence of smaller parsers using a tuple.
     // This is an idiomatic way to define a sequence in `winnow`.
     // 1. Prefix: `~price` or `~b/o`
     // 2. Whitespace: one or more space characters.
     // 3. Amount: a decimal unsigned 32-bit integer.
     // 4. Whitespace: one or more space characters.
-    // 5. Currency Name: a string of alphanumeric characters and hyphens.
+    // 5. Currency Name: a string of alphabetic characters and hyphens.
     let mut parser = (
         alt(("~price", "~b/o")),
-        multispace1::<_, winnow::error::InputError<_>>,
-        winnow::ascii::float::<_, f32, winnow::error::InputError<_>>,
-        multispace1::<_, winnow::error::InputError<_>>,
-        take_while(1.., |c: char| c.is_alphanumeric() || c == '-'),
+        multispace1::<_, InputError<_>>,
+        winnow::ascii::float::<_, f32, InputError<_>>,
+        multispace1::<_, InputError<_>>,
+        take_while(1.., |c: char| c.is_alphabetic() || c == '-'),
     );
 
     let (_, _, amount, _, currency_str) = parser.parse_next(&mut note.as_str()).ok()?;
 
     let currency = ListingCurrency::from_str(currency_str).ok()?;
-
-    // debug!("Extracted price: {} => {} {}", note, amount, currency);
 
     Some(ListingPrice {
         quantity: amount,

@@ -47,13 +47,13 @@ pub struct Item {
     #[serde(with = "clickhouse::serde::chrono::datetime")]
     pub timestamp: DateTime<Utc>,
     pub league: String,
-    pub name: String,
-    pub type_line: String,
     pub base: String,
+    pub name: String,
     pub links: u8,
     pub ilvl: u8,
+    pub frame_type: u8,
     pub corrupted: bool,
-    pub stack_size: u32,
+    pub stack_size: u16,
     /// For gems
     pub level: u8,
     pub quality: u8,
@@ -64,7 +64,6 @@ pub struct Item {
     /// Base type influences
     pub influences: Vec<String>,
     /// Pricing
-    pub note: String,
     pub price_quantity: f32,
     pub price_currency: String,
 }
