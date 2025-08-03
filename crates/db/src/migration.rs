@@ -81,6 +81,26 @@ pub async fn version(client: &clickhouse::Client) -> Result<u32, DbError> {
     Ok(version)
 }
 
+pub async fn update_version(client: &clickhouse::Client, version: u32) -> Result<()> {
+    // Update the schema_migrations table
+    // Delete existing version and insert the new one to ensure only one row exists
+    client
+        .query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
+        .execute()
+        .await
+        .with_context(|| "Failed to delete old version from schema_migrations")?;
+
+    client.query("INSERT INTO schema_migrations (version) SETTINGS async_insert=1, wait_for_async_insert=1 VALUES (?)")
+        .bind(version)
+        .execute()
+        .await
+        .with_context(|| {
+            format!("Failed to update schema_migrations to version {version}")
+        })?;
+
+    Ok(())
+}
+
 pub async fn create(directory: &str, name: &str) -> Result<()> {
     // Create migration directory if it doesn't exist
     let directory = std::env::current_dir()?.join(directory);
@@ -196,8 +216,6 @@ pub async fn to(client: &clickhouse::Client, directory: &str, target_version: &s
             .join(", ")
     );
 
-    let mut latest_version = current_version;
-
     for m in steps {
         let file = directory.join(format!("{:06}_{}.{}.sql", m.version, m.name, direction));
         info!("Applying migration file: {}", file.display());
@@ -214,28 +232,15 @@ pub async fn to(client: &clickhouse::Client, directory: &str, target_version: &s
                 .await
                 .with_context(|| format!("Failed to execute query: {query}"))?;
         }
-        latest_version = if direction == "up" {
+
+        let new_version = if direction == "up" {
             m.version
         } else {
             m.version - 1
         };
+
+        update_version(client, new_version).await?;
     }
-
-    // Update the schema_migrations table
-    // Delete existing version and insert the new one to ensure only one row exists
-    client
-        .query("ALTER TABLE schema_migrations DELETE WHERE 1=1")
-        .execute()
-        .await
-        .with_context(|| "Failed to delete old version from schema_migrations")?;
-
-    client.query("INSERT INTO schema_migrations (version) SETTINGS async_insert=1, wait_for_async_insert=1 VALUES (?)")
-        .bind(latest_version)
-        .execute()
-        .await
-        .with_context(|| {
-            format!("Failed to update schema_migrations to version {latest_version}")
-        })?;
 
     Ok(())
 }
