@@ -18,7 +18,8 @@
                 "tamasfe.even-better-toml",
                 "svelte.svelte-vscode",
                 "esbenp.prettier-vscode",
-                "Gxl.git-graph-3"
+                "Gxl.git-graph-3",
+                "bradlc.vscode-tailwindcss"
             ]
         }
     },
