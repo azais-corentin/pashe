@@ -4,17 +4,18 @@
   "version": "0.1.0",
   "identifier": "cc.chaosindex",
   "build": {
-    "beforeDevCommand": "bun run dev",
+    "beforeDevCommand": "bun run dev --host",
+    "beforeBuildCommand": "",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run build",
-    "frontendDist": "../build"
+    "frontendDist": "http://localhost:1420"
   },
   "app": {
     "windows": [
       {
         "title": "pashe-frontend",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "url": "http://localhost:1420"
       }
     ],
     "security": {
